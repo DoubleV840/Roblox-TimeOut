@@ -1,0 +1,9 @@
+# Project place file
+/Jeu1.rbxlx
+
+# Roblox Studio lock files
+/*.rbxlx.lock
+/*.rbxl.lock
+
+# Secrets / codes de recuperation (ne jamais committer)
+/backupcode.txt
