@@ -23,6 +23,7 @@ local TextFx = require(ReplicatedStorage.Shared.TextFx)
 local ZoneAura = require(ReplicatedStorage.Shared.ZoneAura)
 local Sounds = require(ReplicatedStorage.Shared.Sounds)
 local PlayerData = require(script.Parent.PlayerData)
+local TierService = require(script.Parent.TierService)
 
 local BettingGame = {}
 
@@ -212,10 +213,21 @@ local function resolveRound(state, amount)
 			local data = PlayerData.Get(player)
 			if data then
 				if player == winner then
-					data.TimeLeft += pot
+					-- Un gain de mini-jeu est un gain ACTIF : le palier du
+					-- gagnant le multiplie, comme un clic ou une orbe.
+					--
+					-- Consequence a garder en tete a l'equilibrage : la cagnotte
+					-- sort alors plus grosse qu'elle n'est entree. C'est ce que
+					-- demande le plan 2 (c'est ce qui rend les mini-jeux des
+					-- hauts paliers interessants), mais c'est aussi le seul
+					-- endroit du jeu ou du temps se cree a partir du temps des
+					-- autres -- a surveiller si les mises deviennent grosses.
+					local gain = math.round(pot * TierService.Multiplier(player))
+
+					data.TimeLeft += gain
 					PlayerData.NoteTime(data)
 					Remotes.TimeUpdated:FireClient(player, data.TimeLeft)
-					Remotes.Notify:FireClient(player, "notify_bet_win", { amount = pot }, COLOR_WIN)
+					Remotes.Notify:FireClient(player, "notify_bet_win", { amount = gain }, COLOR_WIN)
 				else
 					Remotes.Notify:FireClient(player, "notify_bet_lose", nil, COLOR_LOSE)
 				end

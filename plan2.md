@@ -62,13 +62,17 @@ Soit **~1 h 30 de clic ininterrompu** pour tout le parcours, et chaque marche à
 
 Chaque étape est faite pour être livrée et testée **seule**, dans l'ordre. Le « fini quand » est le critère à vérifier en jeu avant de passer à la suivante. Le bloc « Dans Studio » liste ce qu'il faut poser à la main ; les étapes sans ce bloc ne demandent aucune manipulation.
 
+Ces blocs sont repris, détaillés et mis dans l'ordre du chantier dans **`studio.md`** — c'est le fichier à suivre pour construire, celui-ci reste la spécification.
+
 Tous les tags et attributs cités sont récapitulés en fin de document.
 
 ## Lot 1 — La verticalité
 
 Le but du lot : que le jeu ait des étages et qu'on puisse y monter. Rien de joli, rien de riche — juste la mécanique, vérifiée de bout en bout sur deux salles avant d'en construire huit.
 
-- [ ] **Étape 1 — La première barrière payante.** Deux salles seulement : le Quai, et une salle au-dessus. Entre les deux, une **barrière transparente** qui bouche le passage — on voit à travers, on ne passe pas.
+> **Code livré, en attente de test en jeu.** Rien ne se voit tant que la map n'a pas ses barrières et ses points de réapparition : la marche à suivre est dans `studio.md`.
+
+- [x] **Étape 1 — La première barrière payante.** Deux salles seulement : le Quai, et une salle au-dessus. Entre les deux, une **barrière transparente** qui bouche le passage — on voit à travers, on ne passe pas.
 
   Sur la barrière, **un panneau plaqué à sa surface** (pas une étiquette flottante) affiche le nom de l'étage, son prix d'entrée, et un bouton. Cliquer le bouton ouvre la confirmation : si le joueur valide et a le temps, on lui retire les 5 minutes et il passe de l'autre côté. S'il n'a pas assez, le panneau le lui dit et ne propose rien.
 
@@ -86,17 +90,31 @@ Le but du lot : que le jeu ait des étages et qu'on puisse y monter. Rien de jol
 
   *Fini quand :* on voit l'étage du dessus à travers la barrière, on ne peut pas la traverser, cliquer le panneau propose de payer, et payer fait passer de l'autre côté avec 5 minutes de moins.
 
-- [ ] **Étape 2 — Le palier à l'écran.** À côté du chrono, en bas : le badge du palier et son nom. Le badge reprend le symbole et la couleur des rangs existants, mais affiche désormais le **palier atteint** et non plus un rang calculé sur le temps possédé. Le panneau de classement suit la même règle.
+  **Livré** — `src/server/TierService.luau` (achat, refus, sauvegarde immédiate), `src/client/TierGates.luau` (panneau + confirmation).
+
+  Le panneau est construit **côté client**, et c'est le point de conception à retenir : trois joueurs devant la même barrière n'y lisent pas la même chose — « OUVERT », le prix, ou ce qu'il leur manque — et chacun dans sa langue. Un panneau écrit par le serveur serait partagé par tous et ne pourrait dire qu'une seule de ces trois choses.
+
+  Conséquence sur la SurfaceGui de Studio : elle ne sert **qu'à dire quelle face** regarde les joueurs. Le panneau lui-même vit dans le PlayerGui avec `Adornee` pointant sur la barrière, parce qu'une SurfaceGui laissée dans le Workspace ne reçoit pas les clics.
+
+  Payer n'éjecte pas de l'autre côté : la barrière **cesse de bloquer** et le joueur avance à pied. Téléporter un personnage à travers un mur dont le code ignore la géométrie était le meilleur moyen de le coincer dans le décor.
+
+- [x] **Étape 2 — Le palier à l'écran.** À côté du chrono, en bas : le badge du palier et son nom. Le badge reprend le symbole et la couleur des rangs existants, mais affiche désormais le **palier atteint** et non plus un rang calculé sur le temps possédé. Le panneau de classement suit la même règle.
 
   *Fini quand :* le badge change au moment où on franchit la barrière, à l'écran comme sur le panneau de classement, et ne bouge plus quand le chrono monte ou descend.
 
-- [ ] **Étape 3 — La barre de progression.** Sous le badge, une barre qui se remplit au fur et à mesure que le chrono approche du prix de l'étage suivant. Elle vire à la couleur du palier visé quand elle est pleine, et pulse.
+  **Livré** — `src/shared/Ranks.luau` disparaît. Ce qui en restait d'utile, le badge rond, devient `src/shared/Badge.luau` et ne connaît plus qu'un couple symbole/couleur ; l'échelle vit dans `src/shared/Tiers.luau`. Les 8 clés `rank_*` sont supprimées des 11 langues et remplacées par `tier_1`..`tier_8`, qui portent les noms de salle.
+
+  Un détail coûteux : le panneau de classement affiche aussi les joueurs **déconnectés**, dont on ne connaît pas le palier sans une lecture DataStore par ligne toutes les 3 secondes. Le palier est donc encodé dans le chiffre des unités de la valeur du classement (voir `TimeBalance`), ce qui oblige à passer `TIME_BALANCE_DATASTORE_NAME` en `_v2` — les temps en pause des joueurs hors ligne repartent de zéro une fois.
+
+- [x] **Étape 3 — La barre de progression.** Sous le badge, une barre qui se remplit au fur et à mesure que le chrono approche du prix de l'étage suivant. Elle vire à la couleur du palier visé quand elle est pleine, et pulse.
 
   C'est le moteur psychologique de tout le plan : elle transforme « j'ai 3 minutes » en « il me manque 2 minutes ». Elle doit être visible en permanence.
 
   *Fini quand :* en cliquant sur le cookie, on voit la barre monter en direct, et elle se vide d'un coup quand on paie l'étage.
 
-- [ ] **Étape 4 — L'échelle complète.** Les 8 paliers, avec leurs noms, leurs prix et leurs raretés de pack, tels qu'ils figurent dans le tableau plus haut. Une barrière par passage. Toutes les valeurs restent regroupées au même endroit pour qu'un test en jeu puisse tout réajuster.
+  **Livré** — barre pleine largeur sous le chrono. Elle vise le prix **plus la marge de sécurité** (`Config.TIER_SAFETY_MARGIN`), pas le prix nu : sinon elle serait pleine alors que l'entrée serait encore refusée. Elle disparaît au Terminus, quand il n'y a plus rien à viser.
+
+- [x] **Étape 4 — L'échelle complète.** Les 8 paliers, avec leurs noms, leurs prix et leurs raretés de pack, tels qu'ils figurent dans le tableau plus haut. Une barrière par passage. Toutes les valeurs restent regroupées au même endroit pour qu'un test en jeu puisse tout réajuster.
 
   **Dans Studio**
   - Six barrières de plus, sur le modèle exact de l'étape 1, entre chaque paire de salles voisines.
@@ -105,13 +123,19 @@ Le but du lot : que le jeu ait des étages et qu'on puisse y monter. Rien de jol
 
   *Fini quand :* on peut monter du Quai au Terminus en payant chaque marche, et le prix affiché sur chaque panneau correspond au tableau.
 
-- [ ] **Étape 5 — Le multiplicateur de gains.** Chaque palier atteint multiplie ce que rapporte **chaque action** : un clic sur le cookie, une orbe ramassée, un gain de mini-jeu. Jamais le chrono tout seul, jamais l'auto-cliqueur.
+  **Livré** — les 8 paliers dans `src/shared/Tiers.luau` : prix, multiplicateur, rareté du pack, symbole, couleur. C'est le seul fichier à toucher pour réajuster l'échelle après un test.
+
+- [x] **Étape 5 — Le multiplicateur de gains.** Chaque palier atteint multiplie ce que rapporte **chaque action** : un clic sur le cookie, une orbe ramassée, un gain de mini-jeu. Jamais le chrono tout seul, jamais l'auto-cliqueur.
 
   L'auto-cliqueur est exclu volontairement : c'est la seule source passive du jeu, et la multiplier par le palier ferait grimper un revenu automatique à ×21 en fin de partie — le jeu se jouerait tout seul.
 
   *Fini quand :* au palier 5, un clic rapporte exactement 5 fois ce qu'il rapportait au Quai, et le chrono continue de descendre à la même vitesse qu'avant.
 
-- [ ] **Étape 6 — Circuler et mourir.** Une barrière d'un étage déjà atteint **cesse de bloquer** : le joueur la traverse à pied, dans les deux sens, sans payer et sans cliquer. Elle continue de bloquer tous les autres. Un joueur qui tombe à zéro réapparaît au Quai, mais garde son palier : ses barrières restent ouvertes pour lui.
+  **Livré** — appliqué au clic (`TimeCookie`), à l'orbe (`TimeOrb`) et au gain de pari (`BettingGame`). Ni au drain, ni à l'auto-cliqueur.
+
+  **À surveiller** : multiplier le gain de pari fait ressortir la cagnotte plus grosse qu'elle n'est entrée. C'est bien ce que demande ce plan (« un gain de mini-jeu »), et c'est ce qui rendra les mini-jeux des hauts paliers intéressants — mais c'est le seul endroit du jeu où du temps se crée à partir du temps des autres. À revoir quand les mises grossiront, ou si deux comptes complices s'en servent.
+
+- [x] **Étape 6 — Circuler et mourir.** Une barrière d'un étage déjà atteint **cesse de bloquer** : le joueur la traverse à pied, dans les deux sens, sans payer et sans cliquer. Elle continue de bloquer tous les autres. Un joueur qui tombe à zéro réapparaît au Quai, mais garde son palier : ses barrières restent ouvertes pour lui.
 
   **Dans Studio**
   - Un point de réapparition (**SpawnLocation**) dans chaque salle, `Neutral` coché.
@@ -119,6 +143,10 @@ Le but du lot : que le jeu ait des étages et qu'on puisse y monter. Rien de jol
   - Vérifier qu'**aucun chemin de marche** ne relie un étage au suivant en contournant sa barrière — pas de rebord, pas de saut possible, pas de trou dans le plafond. La barrière est le seul passage, sinon toute l'échelle se contourne à pied.
 
   *Fini quand :* un joueur palier 5 traverse ses quatre barrières à pied sans rien payer, un joueur palier 1 se cogne dessus, et mourir renvoie au Quai sans perdre le palier.
+
+  **Livré** — une Part ne peut pas être solide pour un joueur et creuse pour son voisin : ça se joue en **groupes de collision**, un par palier côté joueur, un par étage desservi côté barrière, enregistrés au démarrage du serveur. Il n'y a donc aucun groupe à créer dans Studio.
+
+  Le point de réapparition du Quai est celui qui porte l'attribut `TargetTier` = `1` ; à défaut, le jeu prend la SpawnLocation la plus basse de la map. C'est une convention de plus que le tableau des tags ne prévoyait pas — elle évite d'inventer un tag pour une seule Part.
 
 ## Lot 2 — Donner envie de monter
 
@@ -223,11 +251,15 @@ Le contenu détaillé des cartes est en fin de document, section « Le pool des 
 
 Deux corrections à ce qui existe. Elles sont indépendantes et se livrent dans cet ordre. Aucune ne demande de manipulation dans Studio.
 
-- [ ] **Étape 17 — Supprimer le premier cran.** Aujourd'hui le premier achat rapporte exactement 1 seconde par seconde : il annule le drain, et le chrono se **fige**. C'est le pire produit possible — le joueur paie et regarde un compteur immobile, sans savoir si ça marche. Le premier achat doit désormais démarrer au cran du dessus, pour que le chrono **remonte** visiblement dès la première seconde. Les achats suivants continuent de doubler.
+> **Code livré.** Rien à poser dans Studio, mais **le prix du Developer Product est à changer dans le Creator Dashboard** — voir l'étape 18.
+
+- [x] **Étape 17 — Supprimer le premier cran.** Aujourd'hui le premier achat rapporte exactement 1 seconde par seconde : il annule le drain, et le chrono se **fige**. C'est le pire produit possible — le joueur paie et regarde un compteur immobile, sans savoir si ça marche. Le premier achat doit désormais démarrer au cran du dessus, pour que le chrono **remonte** visiblement dès la première seconde. Les achats suivants continuent de doubler.
 
   *Fini quand :* le tout premier achat fait monter le chrono, sans ambiguïté, à l'œil nu.
 
-- [ ] **Étape 18 — Le carburant.** Un auto-cliqueur infini tue la boucle du jeu : passé le premier achat, il n'y a plus rien à faire. Il se vend désormais avec une **durée de fonctionnement**. Le niveau acheté reste acquis pour toujours, mais il ne tourne que tant qu'il reste du carburant ; à sec, il s'arrête et attend un rachat. Rien ne se consomme pendant qu'un joueur est devant l'écran de mort.
+  **Livré** — une seule valeur change : `Config.AUTOCLICK_BASE_RATE`, de `1` à `2`. Le 1er achat donne 2 s/s contre un drain d'1 s/s, donc **+1 s/s net** : le chrono remonte. Les achats suivants doublent toujours. Le client refait le même calcul depuis `Config`, il n'y avait rien à synchroniser.
+
+- [x] **Étape 18 — Le carburant.** Un auto-cliqueur infini tue la boucle du jeu : passé le premier achat, il n'y a plus rien à faire. Il se vend désormais avec une **durée de fonctionnement**. Le niveau acheté reste acquis pour toujours, mais il ne tourne que tant qu'il reste du carburant ; à sec, il s'arrête et attend un rachat. Rien ne se consomme pendant qu'un joueur est devant l'écran de mort.
 
   Les joueurs qui possèdent déjà un auto-cliqueur reçoivent un plein : ils avaient payé pour de l'infini, on ne leur reprend pas sans contrepartie.
 
@@ -235,9 +267,56 @@ Deux corrections à ce qui existe. Elles sont indépendantes et se livrent dans 
 
   *Fini quand :* un auto-cliqueur s'arrête tout seul en fin de durée, et un rachat le relance.
 
-- [ ] **Étape 19 — La jauge de carburant.** Un compte à rebours à l'écran, qui passe au rouge et pulse dans la dernière minute. Le bourdonnement de l'auto-cliqueur se coupe quand il tombe à sec.
+  **Livré** — `data.AutoClickFuel`, en secondes de fonctionnement. Un achat donne **un niveau + un plein**, et le plein s'**ajoute** à ce qui reste : racheter en avance ne gaspille jamais. Rien ne brûle hors ligne, rien ne brûle devant l'écran de mort. Si le réservoir se vide en cours de tick, seul ce qui a réellement brûlé est crédité.
+
+  Les possesseurs actuels reçoivent un plein à leur prochaine connexion : ils avaient payé pour de l'infini, on ne leur reprend pas sans contrepartie.
+
+  **Arbitrages pris** — prix : **99 R$**. Un achat donne **un plein de 2 h + un jeton**, et le jeton se dépense dans l'une des deux branches :
+
+  - **Puissance** — +2 s/s de débit, définitif
+  - **Autonomie** — +4 h de carburant
+
+  Et l'auto-cliqueur **tourne hors ligne** : le carburant brûle pendant l'absence, le temps est crédité au retour.
+
+  **Pourquoi un choix plutôt qu'un versement.** C'est la règle des packs du lot 3, appliquée ici : un cadeau qui tombe se subit, deux cartes obligent le joueur à lire sa propre situation. Deux joueurs qui ont dépensé autant n'ont alors plus le même auto-cliqueur — l'un tient longtemps, l'autre frappe fort.
+
+  **Pourquoi le débit ne double plus.** Un débit exponentiel face à un prix fixe rend les paquets de temps ridicules : avec l'ancienne courbe, le 6ᵉ achat rapportait 128 h pour 99 R$, quand le paquet de 100 h en coûte 1999. Le débit monte donc de façon linéaire — 2, 4, 6, 8… — et c'est le choix qui porte la richesse du produit, pas l'explosion des chiffres.
+
+  Ce que valent N achats, selon la branche prise à chaque fois :
+
+  | Achats | Coût | Tout Puissance | Tout Autonomie |
+  |---|---|---|---|
+  | 1 | 99 R$ | 8 h | 12 h |
+  | 2 | 198 R$ | 20 h | 24 h |
+  | 3 | 297 R$ | 36 h | 36 h |
+  | 4 | 396 R$ | 56 h | 48 h |
+  | 5 | 495 R$ | 80 h | 60 h |
+  | 6 | 594 R$ | 108 h | 72 h |
+
+  Les deux courbes se croisent au 3ᵉ achat : l'autonomie paie tout de suite, la puissance paie ensuite. Aucune ne domine, ce qui est la seule chose qui rende un choix intéressant.
+
+  À 108 h pour 594 R$, l'auto-cliqueur reste ~2,5 fois plus rentable que le meilleur paquet de temps (1000 h à 13 999 R$). C'est voulu — c'est le produit premium — et c'est tenable, là où le facteur 55 de la version précédente ne l'était pas.
+
+  **Le jeton attend dans la sauvegarde** au lieu d'être consommé à l'achat : le flux Roblox va du prompt à `ProcessReceipt`, et une intention notée avant le prompt serait perdue si le joueur se déconnecte entre les deux. La fenêtre s'ouvre d'elle-même au retour d'un achat, mais une icône reste s'il la referme, et un jeton se retrouve intact à la session suivante. **C'est la mécanique que réclament les packs de l'étape 13** : elle est construite ici pour deux cartes, elle se remplira là-bas avec les siennes.
+
+  Le rattrapage hors ligne se calcule depuis `AutoClickSeenAt`, une marque posée à **chaque tour de boucle** et non au départ du joueur : un serveur qui tombe n'émet aucun `PlayerRemoving`, et il n'est pas question d'offrir des heures de carburant à quelqu'un que le jeu a lui-même éjecté. Rien ne court non plus pendant que le joueur était devant l'écran de mort.
+
+  **Deux points à surveiller** :
+
+  - Hors ligne, le chrono est gelé : une heure d'absence rapporte le débit **plein**, une heure de jeu le débit moins le drain. L'écart ne pèse qu'aux premiers crans ; ensuite le drain ne compte plus. `Config.AUTOCLICK_OFFLINE_RATIO` et `Config.AUTOCLICK_OFFLINE_MAX` sont là, neutres, pour corriger sans toucher au code.
+  - Le carburant stocké brûle **au débit du moment** : prendre l'autonomie plusieurs fois puis la puissance rapporte plus qu'alterner. Assumé — avec un débit linéaire l'écart reste dans un facteur 2, là où il aurait explosé avec l'ancien débit qui doublait.
+
+  **À faire hors du code** : le champ `robux` de `Config` ne sert qu'à l'affichage. Le vrai prix se change dans le *Creator Dashboard → Monetization → Developer Products*, sur le produit `3710399391` : **999 → 99 R$**. Tant que ce n'est pas fait, le jeu annonce 99 et facture 999.
+
+- [x] **Étape 19 — La jauge de carburant.** Un compte à rebours à l'écran, qui passe au rouge et pulse dans la dernière minute. Le bourdonnement de l'auto-cliqueur se coupe quand il tombe à sec.
 
   *Fini quand :* le joueur sait toujours combien de temps il lui reste, sans avoir à le deviner.
+
+  **Livré** — bandeau en haut à droite, au-dessus du HUD des paris : compte à rebours, barre de remplissage, rouge et pulsation dans la dernière minute (`Config.AUTOCLICK_LOW_FUEL`), et un état « à sec » qui reste affiché tant que le joueur possède un niveau — sinon il ne comprendrait pas pourquoi plus rien ne rentre.
+
+  Le compte à rebours descend **côté client**, image par image, exactement comme le chrono : le serveur ne le recale que toutes les 15 s (`Config.AUTOCLICK_SYNC_INTERVAL`), au lieu d'un message par seconde et par joueur. Le bourdonnement se coupe au moment où le réservoir se vide.
+
+  Le guichet affiche aussi le carburant restant et ce que donne le prochain achat.
 
 ## Lot 5 — Les power-ups du cookie
 
@@ -369,6 +448,7 @@ Tout ce qui est à poser à la main dans Studio, en une seule table. Les tags se
 | `ShopZone` *(existant)* | Le guichet à packs | `ShopKind` *(texte)* = `Pack` | 16 |
 | `PowerUpZone` | Une zone d'achat de power-up | `PowerUp` *(texte)* = `Critique`, `Echo`, `Frenesie`, `PoidsDuTemps` ou `Rouages` | 20–23 |
 | `MiniGameZone` | Une zone de mini-jeu | `Game` *(texte)*, `BetAmount` *(nombre)*, `MinTier` *(nombre)* | 24–31 |
+| *(aucun tag)* | La **SpawnLocation** du Quai | `TargetTier` *(nombre)* = `1` — facultatif, sinon la plus basse fait foi | 6 |
 
 Tags déjà en place et inchangés : `TimeCookie`, `ClickUpgrade`, `BetZone`, `TimeOrb`, `HallOfFameBoard`, `ShopZone`.
 
@@ -430,7 +510,7 @@ Chaque pack propose exactement une carte de chaque famille.
 
 # Ce qu'il faut construire dans la map
 
-Vue d'ensemble de la construction manuelle, une fois toutes les étapes faites.
+Vue d'ensemble de la construction manuelle, une fois toutes les étapes faites. La marche à suivre, étape par étape et dans l'ordre, est dans `studio.md`.
 
 - **8 salles mitoyennes**, empilées ou en enfilade le long d'un escalier vitré, chacune dans la charte visuelle du lot 2.
 - **7 barrières transparentes**, une par passage, taguées `TierGate` avec leur `TargetTier`.
@@ -446,8 +526,10 @@ Vue d'ensemble de la construction manuelle, une fois toutes les étapes faites.
 
 - **Le Terminus s'achète-t-il en un seul paquet Robux ?** 1000 h est exactement le plus gros paquet vendu. C'est un argument de vente très fort, mais le contenu final s'ouvre alors sans avoir joué. Si ce n'est pas voulu, la correction propre n'est pas de bouger le prix du paquet : c'est d'ajouter au palier 8 une condition non monnayable — avoir gagné le Train de minuit, ou avoir tenu un certain nombre de jours.
 - **Le multiplicateur suit-il le joueur ou la salle ?** Aujourd'hui il suit le joueur : un palier 5 qui redescend farmer au Quai garde son ×5. L'attacher à la salle forcerait à rester en haut, mais punirait ceux qui redescendent pour un mini-jeu ou pour retrouver des amis.
-- **Le prix de l'auto-cliqueur**, maintenant qu'il vend une durée et non plus une possession définitive. 999 R$ pour 30 minutes est probablement trop cher.
-- **La durée d'une recharge de carburant** : 30 minutes est un point de départ, pas une mesure.
+- ~~**Le prix de l'auto-cliqueur**~~ — tranché : **99 R$**. Reste à répercuter dans le Creator Dashboard (étape 18).
+- ~~**La durée d'une recharge de carburant**~~ — tranché : 2 h par achat (`AUTOCLICK_FUEL_BASE`), +4 h par carte Autonomie (`_STEP`), et fonctionnement hors ligne.
+- ~~**L'auto-cliqueur cannibalise-t-il les paquets de temps ?**~~ — réglé par le passage à un débit linéaire et au jeton à deux branches : il reste ~2,5 fois plus rentable que le meilleur paquet, ce qui est le bon écart pour un produit premium. À revérifier après le premier test réel.
+- **Le gain de pari doit-il vraiment être multiplié ?** Le plan dit oui (« un gain de mini-jeu »), et c'est livré ainsi. Mais la cagnotte ressort alors plus grosse qu'elle n'est entrée : c'est le seul endroit du jeu où du temps se crée. Les corrections possibles, si le test le demande : ne multiplier que la part que le gagnant a lui-même misée, ou plafonner le multiplicateur des mini-jeux.
 - **Le bouton du panneau suffit-il ?** Un bouton plaqué sur une barrière n'affiche pas d'indice d'interaction. Si les joueurs ne comprennent pas qu'on peut cliquer, ajouter une ProximityPrompt sur la même Part.
 - **Tous les chiffres de ce plan** sont calculés, pas mesurés. Ils sont à revoir après le premier test complet du lot 1.
 

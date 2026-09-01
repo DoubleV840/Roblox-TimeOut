@@ -8,7 +8,8 @@ local Workspace = game:GetService("Workspace")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local TimeFormat = require(ReplicatedStorage.Shared.TimeFormat)
-local Ranks = require(ReplicatedStorage.Shared.Ranks)
+local Badge = require(ReplicatedStorage.Shared.Badge)
+local Tiers = require(ReplicatedStorage.Shared.Tiers)
 local Fonts = require(ReplicatedStorage.Shared.Fonts)
 local TextFx = require(ReplicatedStorage.Shared.TextFx)
 local Locale = require(ReplicatedStorage.Shared.Locale)
@@ -17,6 +18,13 @@ local Sounds = require(ReplicatedStorage.Shared.Sounds)
 local Ambience = require(script.Ambience)
 local Soundscape = require(script.Soundscape)
 local Spin = require(script.Spin)
+local Popup = require(script.Popup)
+local TierGates = require(script.TierGates)
+local AutoClickChoice = require(script.AutoClickChoice)
+local TierWindows = require(script.TierWindows)
+local TierAnnounce = require(script.TierAnnounce)
+local Nameplates = require(script.Nameplates)
+local Flicker = require(script.Flicker)
 
 TextFx.Bind()
 Locale.Bind()
@@ -25,37 +33,17 @@ Soundscape.Start()
 Sounds.Preload()
 Spin.Bind(Config.CLICKER_TAG, Config.SPIN_TAG)
 
--- Petite animation "pop" (rebond) utilisee a l'ouverture des popups.
-local function popIn(frame, targetSize)
-	frame.Size = UDim2.new(targetSize.X.Scale * 0.7, targetSize.X.Offset * 0.7, targetSize.Y.Scale * 0.7, targetSize.Y.Offset * 0.7)
-	frame.Visible = true
-	TweenService:Create(frame, TweenInfo.new(0.25, Enum.EasingStyle.Back, Enum.EasingDirection.Out), { Size = targetSize }):Play()
-	Sounds.Play("ui_popup_open")
-end
+-- Lot 2. Le gresillement des neons et les panneaux au-dessus des tetes ne
+-- dependent d'aucune donnee du serveur : ils peuvent partir tout de suite.
+Flicker.Start()
+Nameplates.Start()
 
--- Referme une popup en la faisant sonner -- mais seulement si elle etait
--- ouverte : les fermetures se font aussi en cascade (mort, sortie de zone) sur
--- des popups deja invisibles, et ca ne doit rien declencher.
-local function popOut(frame)
-	if not frame.Visible then
-		return
-	end
-
-	frame.Visible = false
-	Sounds.Play("ui_popup_close")
-end
-
--- Tout bouton du jeu reagit au survol et au clic. Une seule fonction, appelee a
--- la creation : impossible d'oublier un bouton en route.
-local function bindButtonSounds(button)
-	button.MouseEnter:Connect(function()
-		Sounds.Play("ui_hover")
-	end)
-
-	button.MouseButton1Down:Connect(function()
-		Sounds.Play("ui_click")
-	end)
-end
+-- Ouverture, fermeture et sons de bouton vivent dans script.Popup : les modules
+-- clients (paliers, et la suite du plan 2) ouvrent leurs fenetres exactement
+-- comme celles d'ici.
+local popIn = Popup.In
+local popOut = Popup.Out
+local bindButtonSounds = Popup.BindButtonSounds
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -65,22 +53,19 @@ screenGui.Name = "TimeOutUI"
 screenGui.ResetOnSpawn = false
 screenGui.Parent = playerGui
 
-local TIME_COLOR_LOW = Color3.fromRGB(220, 50, 50) -- rouge : temps critique
-local TIME_COLOR_HIGH = Color3.fromRGB(80, 220, 120) -- vert : temps confortable
-
-local function timeFactor(timeLeft)
-	return math.clamp(timeLeft / Config.BASE_TIME, 0, 1)
-end
-
-local function timeColor(timeLeft)
-	return TIME_COLOR_LOW:Lerp(TIME_COLOR_HIGH, timeFactor(timeLeft))
-end
+-- Le degrade du chrono vit dans Colors : le panneau au-dessus des autres
+-- joueurs lit exactement la meme echelle que ce HUD, sinon on ne pourrait pas
+-- comparer sa couleur a la leur.
+local TIME_COLOR_LOW = Colors.TIME_LOW
+local TIME_COLOR_HIGH = Colors.TIME_HIGH
+local timeFactor = Colors.TimeFactor
+local timeColor = Colors.ForTime
 
 -- Barre du bas : badge de rang a gauche, chrono + nom du rang a droite.
 local bottomBar = Instance.new("Frame")
 bottomBar.AnchorPoint = Vector2.new(0.5, 1)
 bottomBar.Size = UDim2.new(0, 440, 0, 66)
-bottomBar.Position = UDim2.new(0.5, 0, 1, -20)
+bottomBar.Position = UDim2.new(0.5, 0, 1, -26)
 bottomBar.BackgroundTransparency = 1
 bottomBar.Parent = screenGui
 
@@ -92,10 +77,10 @@ bottomLayout.SortOrder = Enum.SortOrder.LayoutOrder
 bottomLayout.Padding = UDim.new(0, 10)
 bottomLayout.Parent = bottomBar
 
-local rankBadge = Ranks.NewBadge(Ranks.For(Config.BASE_TIME))
-rankBadge.Size = UDim2.new(0, 0, 0.85, 0)
-rankBadge.LayoutOrder = 1
-rankBadge.Parent = bottomBar
+local tierBadge = Badge.New(Tiers.Get(Tiers.FIRST))
+tierBadge.Size = UDim2.new(0, 0, 0.85, 0)
+tierBadge.LayoutOrder = 1
+tierBadge.Parent = bottomBar
 
 local timeColumn = Instance.new("Frame")
 timeColumn.Size = UDim2.new(0, 340, 1, 0)
@@ -114,16 +99,73 @@ label.FontFace = Fonts.Main
 label.Text = "--:--:--.---"
 label.Parent = timeColumn
 
-local rankLabel = Instance.new("TextLabel")
-rankLabel.Size = UDim2.new(1, 0, 0.3, 0)
-rankLabel.Position = UDim2.new(0, 0, 0.7, 0)
-rankLabel.BackgroundTransparency = 1
-rankLabel.TextStrokeTransparency = 0
-rankLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-rankLabel.TextScaled = true
-rankLabel.FontFace = Fonts.Main
-rankLabel.Text = ""
-rankLabel.Parent = timeColumn
+local tierLabel = Instance.new("TextLabel")
+tierLabel.Size = UDim2.new(1, 0, 0.3, 0)
+tierLabel.Position = UDim2.new(0, 0, 0.7, 0)
+tierLabel.BackgroundTransparency = 1
+tierLabel.TextStrokeTransparency = 0
+tierLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+tierLabel.TextScaled = true
+tierLabel.FontFace = Fonts.Main
+tierLabel.Text = ""
+tierLabel.Parent = timeColumn
+
+-- Barre de progression vers le palier suivant.
+--
+-- C'est le moteur psychologique du plan 2 : elle transforme "j'ai 3 minutes" en
+-- "il me manque 2 minutes". Elle est donc affichee en permanence, sous le
+-- chrono, et ne disparait qu'au Terminus -- quand il n'y a plus rien a viser.
+
+local PROGRESS_WIDTH = 430
+local PROGRESS_EMPTY = Color3.fromRGB(70, 74, 84)
+
+local progressTrack = Instance.new("Frame")
+progressTrack.Name = "TierProgress"
+progressTrack.AnchorPoint = Vector2.new(0.5, 1)
+progressTrack.Size = UDim2.new(0, PROGRESS_WIDTH, 0, 16)
+progressTrack.Position = UDim2.new(0.5, 0, 1, -6)
+progressTrack.BackgroundColor3 = Color3.fromRGB(12, 12, 14)
+progressTrack.BackgroundTransparency = 0.3
+progressTrack.BorderSizePixel = 0
+progressTrack.Parent = screenGui
+
+local progressCorner = Instance.new("UICorner")
+progressCorner.CornerRadius = UDim.new(1, 0)
+progressCorner.Parent = progressTrack
+
+local progressFill = Instance.new("Frame")
+progressFill.Size = UDim2.fromScale(0, 1)
+progressFill.BackgroundColor3 = PROGRESS_EMPTY
+progressFill.BorderSizePixel = 0
+progressFill.Parent = progressTrack
+
+local progressFillCorner = Instance.new("UICorner")
+progressFillCorner.CornerRadius = UDim.new(1, 0)
+progressFillCorner.Parent = progressFill
+
+local progressLabel = Instance.new("TextLabel")
+progressLabel.Size = UDim2.fromScale(1, 1)
+progressLabel.BackgroundTransparency = 1
+progressLabel.TextStrokeTransparency = 0.2
+progressLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+progressLabel.TextColor3 = Color3.fromRGB(240, 240, 245)
+progressLabel.TextScaled = true
+progressLabel.FontFace = Fonts.Main
+progressLabel.Text = ""
+progressLabel.ZIndex = 2
+progressLabel.Parent = progressTrack
+
+local progressPadding = Instance.new("UIPadding")
+progressPadding.PaddingTop = UDim.new(0, 2)
+progressPadding.PaddingBottom = UDim.new(0, 2)
+progressPadding.Parent = progressLabel
+
+local progressPulse = TweenService:Create(
+	progressFill,
+	TweenInfo.new(0.55, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+	{ BackgroundTransparency = 0.45 }
+)
+local progressFull = false
 
 local pulseTween = TweenService:Create(
 	label,
@@ -145,34 +187,65 @@ local function updatePulse(timeLeft)
 end
 
 local currentClickPower = 1
-local currentRank = nil
 
-local function updateRank(timeLeft)
-	local rank = Ranks.For(timeLeft)
-	if rank == currentRank then
+-- Le badge affiche le PALIER ATTEINT, jamais un rang calcule sur le temps
+-- possede : il ne bouge donc pas quand le chrono monte ou descend, seulement
+-- quand une barriere est franchie. Deux echelles paralleles -- une gratuite, une
+-- payante -- embrouilleraient tout le monde pour rien.
+local currentTier = Tiers.Get(Tiers.FIRST)
+
+-- Ce qu'il faut POSSEDER pour franchir un palier : le prix, plus la marge de
+-- securite exigee par le serveur (voir TierService.Required). La barre vise ce
+-- montant-la et pas le prix nu, sinon elle serait pleine avant que l'entree ne
+-- soit acceptee.
+local function requiredFor(tier)
+	return tier.cost + math.max(Config.TIER_SAFETY_MARGIN, tier.cost * Config.TIER_SAFETY_FRACTION)
+end
+
+local function setProgressFull(full)
+	if full == progressFull then
 		return
 	end
 
-	local previous = currentRank
-	currentRank = rank
-	Ranks.ApplyBadge(rankBadge, rank)
-	rankLabel.Text = Locale.Text(rank.key)
-	rankLabel.TextColor3 = rank.color
+	progressFull = full
 
-	-- Pas de son au tout premier affichage (previous == nil), ni sur la
-	-- degringolade vers zero : la mort a deja sa propre bande-son.
-	if not previous or timeLeft <= 0 then
-		return
-	end
-
-	if rank.index > previous.index then
-		Sounds.Play("rank_up")
+	if full then
+		progressPulse:Play()
 	else
-		Sounds.Play("rank_down")
+		progressPulse:Cancel()
+		progressFill.BackgroundTransparency = 0
 	end
 end
 
-updateRank(Config.BASE_TIME)
+local function updateProgress(timeLeft)
+	local nextTier = Tiers.Next(currentTier.index)
+
+	-- Terminus : plus rien a viser, la barre s'efface.
+	if not nextTier then
+		progressTrack.Visible = false
+		setProgressFull(false)
+		return
+	end
+
+	progressTrack.Visible = true
+
+	local required = requiredFor(nextTier)
+	local ratio = math.clamp(timeLeft / required, 0, 1)
+
+	progressFill.Size = UDim2.fromScale(ratio, 1)
+	progressFill.BackgroundColor3 = PROGRESS_EMPTY:Lerp(nextTier.color, ratio)
+
+	if ratio >= 1 then
+		progressLabel.Text = Locale.Text("tier_hud_ready", { name = Locale.Text(nextTier.key) })
+		setProgressFull(true)
+	else
+		progressLabel.Text = Locale.Text("tier_hud_next", {
+			name = Locale.Text(nextTier.key),
+			amount = math.ceil(required - timeLeft),
+		})
+		setProgressFull(false)
+	end
+end
 
 -- Le serveur n'envoie le temps qu'une fois par seconde ; on le fait descendre
 -- localement entre deux messages pour que les millisecondes defilent vraiment.
@@ -183,7 +256,8 @@ local function renderTime()
 	label.Text = TimeFormat.Clock(displayTime)
 	label.TextColor3 = timeColor(displayTime)
 	updatePulse(displayTime)
-	updateRank(displayTime)
+	updateProgress(displayTime)
+	TierGates.SetTime(displayTime)
 	Ambience.SetTimeFactor(timeFactor(displayTime))
 	Soundscape.SetTime(displayTime, timeFactor(displayTime))
 end
@@ -219,6 +293,11 @@ end)
 
 -- Ecran de mort plein ecran : fondu au noir, "TIME OUT" puis "TU ES MORT" grave
 -- en serif rouge sur une bande sombre, facon ecran de defaite classique.
+
+-- Vrai entre le moment ou le chrono tombe a zero et le retour en jeu. Le
+-- carburant de l'auto-cliqueur ne brule pas pendant ce temps -- cote serveur
+-- comme ici, ou la jauge doit se figer plutot que de se vider dans le vide.
+local playerIsDead = false
 
 local DEATH_RED = Color3.fromRGB(190, 30, 30)
 
@@ -409,6 +488,7 @@ end
 
 restartButton.MouseButton1Click:Connect(function()
 	deathToken += 1
+	playerIsDead = false
 	Remotes.RequestRestart:FireServer()
 	deathScreen.Visible = false
 	Soundscape.SetDead(false)
@@ -436,7 +516,13 @@ local NOTIFY_SOUNDS = {
 	notify_shop_failed = "ui_purchase_failed",
 	notify_shop_granted = "ui_purchase_success",
 	notify_autoclick_granted = "autoclick_bought",
+	notify_autoclick_dry = "autoclick_dry",
+	notify_autoclick_offline = "autoclick_bought",
+	notify_autoclick_power = "autoclick_bought",
+	notify_autoclick_fuel = "autoclick_bought",
 	notify_bet_unlocked = "bet_unlocked",
+	notify_tier_poor = "tier_denied",
+	notify_tier_locked = "tier_denied",
 }
 
 local function playNotifySound(key, color)
@@ -487,6 +573,46 @@ Remotes.Notify.OnClientEvent:Connect(function(key, params, color)
 		end
 	end)
 end)
+
+--------------------------------------------------------------------------------
+-- Paliers
+--------------------------------------------------------------------------------
+
+local function setTier(index)
+	local tier = Tiers.Get(index)
+	local previous = currentTier
+
+	currentTier = tier
+	Badge.Apply(tierBadge, tier)
+	tierLabel.Text = Locale.Text(tier.key)
+	tierLabel.TextColor3 = tier.color
+
+	TierGates.SetTier(tier.index)
+	TierWindows.SetTier(tier.index)
+	updateProgress(displayTime)
+
+	-- Le tout premier message du serveur ne fait que dire ou en est le joueur :
+	-- il ne vient de rien franchir, il ne doit rien entendre.
+	if tier.index > previous.index then
+		Sounds.Play("rank_up")
+	end
+end
+
+TierGates.Start(screenGui)
+TierWindows.Start()
+TierAnnounce.Start(screenGui)
+AutoClickChoice.Start(screenGui)
+setTier(Tiers.FIRST)
+
+Remotes.TierUpdated.OnClientEvent:Connect(setTier)
+
+-- Le palier est reclame, pas attendu : le serveur ne peut pas le pousser a
+-- l'arrivee du joueur (les Remotes ne sont pas encore branches de ce cote).
+Remotes.TierUpdated:FireServer()
+
+-- Une montee est un evenement de serveur, et son bandeau vit dans
+-- script.TierAnnounce : l'annonce n'est plus une ligne de notification empruntee
+-- mais un moment a elle, dont l'ampleur suit l'etage franchi (etape 12).
 
 -- Popup de confirmation de pari
 
@@ -924,10 +1050,129 @@ end
 local shopCloseButton = newShopCloseButton(shopFrame)
 
 --------------------------------------------------------------------------------
+-- Jauge de carburant de l'auto-cliqueur
+--------------------------------------------------------------------------------
+--
+-- Le serveur n'envoie le carburant qu'a l'achat, a sec, et toutes les quelques
+-- secondes pour recaler : le compte a rebours descend ICI, image par image, tant
+-- que le joueur est vivant. Sans ca il faudrait un message par seconde et par
+-- joueur pour un chiffre que le client sait calculer tout seul.
+
+local autoClickersOwned = 0
+local autoFuel = 0
+local autoRate = 0
+
+-- Reference de la jauge : le plein le plus haut vu depuis le dernier reservoir a
+-- sec. Les pleins s'empilent et grossissent avec l'autonomie, il n'y a donc pas
+-- de "plein" fixe a comparer -- mais une jauge qui part pleine et descend
+-- jusqu'a zero se lit toujours de la meme facon.
+local autoFuelMax = 0
+
+local FUEL_COLOR = Color3.fromRGB(255, 130, 215) -- le magenta de l'auto-cliqueur
+local FUEL_LOW = Color3.fromRGB(255, 90, 70) -- derniere minute
+
+local fuelHud = Instance.new("Frame")
+fuelHud.Name = "AutoClickFuel"
+fuelHud.AnchorPoint = Vector2.new(1, 0)
+fuelHud.Position = UDim2.new(1, -16, 0, 52)
+fuelHud.Size = UDim2.new(0, 240, 0, 34)
+fuelHud.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+fuelHud.BackgroundTransparency = 0.25
+fuelHud.BorderSizePixel = 0
+fuelHud.Visible = false
+fuelHud.Parent = screenGui
+
+local fuelCorner = Instance.new("UICorner")
+fuelCorner.CornerRadius = UDim.new(0, 6)
+fuelCorner.Parent = fuelHud
+
+local fuelStroke = Instance.new("UIStroke")
+fuelStroke.Color = FUEL_COLOR
+fuelStroke.Thickness = 1
+fuelStroke.Transparency = 0.4
+fuelStroke.Parent = fuelHud
+
+local fuelLabel = Instance.new("TextLabel")
+fuelLabel.Size = UDim2.new(1, -16, 1, -10)
+fuelLabel.Position = UDim2.new(0, 8, 0, 3)
+fuelLabel.BackgroundTransparency = 1
+fuelLabel.TextColor3 = FUEL_COLOR
+fuelLabel.FontFace = Fonts.Main
+fuelLabel.TextScaled = true
+fuelLabel.TextXAlignment = Enum.TextXAlignment.Right
+fuelLabel.Text = ""
+fuelLabel.Parent = fuelHud
+
+local fuelTrack = Instance.new("Frame")
+fuelTrack.AnchorPoint = Vector2.new(0.5, 1)
+fuelTrack.Position = UDim2.new(0.5, 0, 1, -4)
+fuelTrack.Size = UDim2.new(1, -16, 0, 3)
+fuelTrack.BackgroundColor3 = Color3.fromRGB(60, 60, 68)
+fuelTrack.BorderSizePixel = 0
+fuelTrack.Parent = fuelHud
+
+local fuelFill = Instance.new("Frame")
+fuelFill.Size = UDim2.fromScale(0, 1)
+fuelFill.BackgroundColor3 = FUEL_COLOR
+fuelFill.BorderSizePixel = 0
+fuelFill.Parent = fuelTrack
+
+local fuelPulse = TweenService:Create(
+	fuelHud,
+	TweenInfo.new(0.5, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true),
+	{ BackgroundTransparency = 0.65 }
+)
+local fuelPulsing = false
+
+local function setFuelPulse(active)
+	if active == fuelPulsing then
+		return
+	end
+
+	fuelPulsing = active
+
+	if active then
+		fuelPulse:Play()
+	else
+		fuelPulse:Cancel()
+		fuelHud.BackgroundTransparency = 0.25
+	end
+end
+
+-- Declaree avant setAutoClickers, qui l'appelle a chaque changement d'etat.
+local function renderFuel()
+	-- Sans auto-cliqueur, il n'y a pas de reservoir : la jauge n'a rien a dire.
+	if autoClickersOwned <= 0 then
+		fuelHud.Visible = false
+		setFuelPulse(false)
+		return
+	end
+
+	fuelHud.Visible = true
+
+	local dry = autoFuel <= 0
+	local low = not dry and autoFuel <= Config.AUTOCLICK_LOW_FUEL
+	local color = (dry or low) and FUEL_LOW or FUEL_COLOR
+
+	fuelLabel.Text = dry and Locale.Text("hud_fuel_empty")
+		or Locale.Text("hud_fuel", { amount = math.ceil(autoFuel) })
+	fuelLabel.TextColor3 = color
+	fuelFill.BackgroundColor3 = color
+	fuelFill.Size = UDim2.fromScale(autoFuelMax > 0 and math.clamp(autoFuel / autoFuelMax, 0, 1) or 0, 1)
+	fuelStroke.Color = color
+
+	-- A sec, la jauge ne pulse plus : il n'y a plus d'urgence, c'est fini.
+	setFuelPulse(low)
+end
+
+--------------------------------------------------------------------------------
 -- Guichet "AutoClick" : auto-cliqueurs
 --------------------------------------------------------------------------------
 
-local AUTO_SHOP_SIZE = UDim2.new(0, 320, 0, shopHeight(28 + SHOP_ROW_HEIGHT + SHOP_ROW_GAP))
+local AUTO_SHOP_FUEL_LINE = 24
+
+local AUTO_SHOP_SIZE =
+	UDim2.new(0, 320, 0, shopHeight(28 + AUTO_SHOP_FUEL_LINE + SHOP_ROW_HEIGHT + SHOP_ROW_GAP))
 
 local autoShopFrame = newShopFrame(AUTO_SHOP_SIZE.Y.Offset)
 newShopTitle(autoShopFrame, "shop_auto_title", Color3.fromRGB(255, 150, 220))
@@ -942,40 +1187,57 @@ autoOwnedLabel.TextScaled = true
 autoOwnedLabel.Text = ""
 autoOwnedLabel.Parent = autoShopFrame
 
+-- Ce qu'il reste dans le reservoir : c'est ce chiffre qui decide du rachat, pas
+-- le debit. Un joueur a sec depuis dix minutes ne le devine pas tout seul.
+local autoFuelLabel = Instance.new("TextLabel")
+autoFuelLabel.Size = UDim2.new(1, -24, 0, AUTO_SHOP_FUEL_LINE)
+autoFuelLabel.Position = UDim2.new(0, 12, 0, SHOP_CONTENT_TOP + 22)
+autoFuelLabel.BackgroundTransparency = 1
+autoFuelLabel.FontFace = Fonts.Main
+autoFuelLabel.TextScaled = true
+autoFuelLabel.Text = ""
+autoFuelLabel.Parent = autoShopFrame
+
 local autoRow = newShopRow(autoShopFrame, 1)
-autoRow.button.Position = UDim2.new(0, 12, 0, SHOP_CONTENT_TOP + 28)
+autoRow.button.Position = UDim2.new(0, 12, 0, SHOP_CONTENT_TOP + 28 + AUTO_SHOP_FUEL_LINE)
 
 local autoShopCloseButton = newShopCloseButton(autoShopFrame)
 
-local autoClickersOwned = 0
-
--- Le debit se calcule pareil des deux cotes (voir AutoClicker.RateAt cote serveur) :
--- rien a faire transiter, le client refait le calcul a partir du niveau.
-local function autoRateAt(level)
-	if level <= 0 then
-		return 0
-	end
-
-	return Config.AUTOCLICK_BASE_RATE * Config.AUTOCLICK_GROWTH ^ (level - 1)
-end
-
--- Un seul produit, rachetable a l'infini : il n'y a jamais de palier "epuise",
--- juste le niveau suivant et son debit double.
+-- Un seul produit, rachetable a l'infini, et toujours le meme contenu : un plein
+-- de base, plus un jeton a depenser en puissance ou en autonomie. Il n'y a donc
+-- plus de "prochain palier" a annoncer -- c'est le joueur qui decide de ce que
+-- l'achat lui apporte.
 local function refreshAutoShop()
-	autoOwnedLabel.Text = Locale.Text("shop_auto_owned", { rate = autoRateAt(autoClickersOwned) })
-	autoRow.amount.Text = Locale.Text("shop_auto_next", {
-		level = autoClickersOwned + 1,
-		rate = autoRateAt(autoClickersOwned + 1),
-	})
+	autoOwnedLabel.Text = Locale.Text("shop_auto_owned", { rate = autoRate })
+	autoFuelLabel.Text = Locale.Text("shop_auto_left", { amount = math.ceil(autoFuel) })
+	autoFuelLabel.TextColor3 = autoFuel > 0 and Color3.fromRGB(200, 205, 215) or FUEL_LOW
+	autoRow.amount.Text = Locale.Text("shop_auto_next", { fuel = Config.AUTOCLICK_FUEL_BASE })
 	autoRow.price.Text = Locale.Text("shop_price", { price = Config.AUTOCLICK_PRODUCT.robux })
 end
 
--- Point d'entree unique quand le nombre d'auto-cliqueurs change : le guichet se
--- met a jour et le bourdonnement passif monte d'un cran.
-local function setAutoClickers(owned)
-	autoClickersOwned = owned or 0
+-- Point d'entree unique quand l'etat de l'auto-cliqueur change : le guichet, la
+-- jauge et le bourdonnement passif s'y raccrochent tous.
+--
+-- Le bourdonnement suit le CARBURANT autant que le niveau : a sec, la machine
+-- s'arrete, et on doit l'entendre s'arreter.
+local function setAutoClickers(state)
+	state = state or {}
+
+	autoClickersOwned = state.owned or 0
+	autoFuel = math.max(0, state.fuel or 0)
+	autoRate = state.rate or 0
+
+	-- Un plein remonte la reference ; un reservoir a sec la remet a zero, pour
+	-- que le prochain achat reparte d'une jauge pleine.
+	autoFuelMax = autoFuel > 0 and math.max(autoFuelMax, autoFuel) or 0
+
 	refreshAutoShop()
-	Soundscape.SetAutoClickLevel(autoClickersOwned)
+
+	-- Le bourdonnement suit le debit, et se tait a sec.
+	Soundscape.SetAutoClickLevel(autoFuel > 0 and ((state.power or 0) + 1) or 0)
+
+	AutoClickChoice.SetState(state)
+	renderFuel()
 end
 
 autoRow.button.MouseButton1Click:Connect(function()
@@ -996,9 +1258,9 @@ end
 shopCloseButton.MouseButton1Click:Connect(hideShopPrompt)
 autoShopCloseButton.MouseButton1Click:Connect(hideShopPrompt)
 
-Remotes.ShopPrompt.OnClientEvent:Connect(function(zone, kind, owned)
+Remotes.ShopPrompt.OnClientEvent:Connect(function(zone, kind, state)
 	if kind == Config.SHOP_KIND_AUTOCLICK then
-		setAutoClickers(owned)
+		setAutoClickers(state)
 		currentShopZone = zone
 		popIn(autoShopFrame, AUTO_SHOP_SIZE)
 		return
@@ -1024,11 +1286,30 @@ end)
 -- sans que le joueur ait besoin de ressortir de la zone.
 Remotes.AutoClickUpdated.OnClientEvent:Connect(setAutoClickers)
 
+-- Le reservoir se vide a une seconde par seconde de jeu, exactement comme cote
+-- serveur -- et se fige devant l'ecran de mort, pour la meme raison.
+RunService.Heartbeat:Connect(function(deltaTime)
+	if autoClickersOwned <= 0 or autoFuel <= 0 or playerIsDead then
+		return
+	end
+
+	autoFuel = math.max(0, autoFuel - deltaTime)
+
+	-- Le passage a sec ne traverse cette ligne qu'une fois : au tour suivant, le
+	-- test du dessus arrete tout.
+	if autoFuel <= 0 then
+		Soundscape.SetAutoClickLevel(0)
+	end
+
+	renderFuel()
+end)
+
 
 -- Du temps achete alors qu'on etait devant l'ecran de mort : on repart en jeu
 -- sans passer par "Recommencer", qui remettrait le temps de base.
 Remotes.Revived.OnClientEvent:Connect(function()
 	deathToken += 1
+	playerIsDead = false
 	deathScreen.Visible = false
 	Soundscape.SetDead(false)
 	Sounds.Play("revive")
@@ -1261,6 +1542,7 @@ end)
 Remotes.BetRoundsUpdated:FireServer()
 
 Remotes.PlayerTimedOut.OnClientEvent:Connect(function()
+	playerIsDead = true
 	displayTime = 0
 	countingDown = false
 	label.Text = TimeFormat.Clock(0)
@@ -1268,5 +1550,6 @@ Remotes.PlayerTimedOut.OnClientEvent:Connect(function()
 	hideBetPrompt()
 	hideUpgradePrompt()
 	hideShopPrompt()
+	TierGates.HideConfirm()
 	playDeathScreen()
 end)

@@ -11,6 +11,7 @@ local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Sounds = require(ReplicatedStorage.Shared.Sounds)
 local PlayerData = require(script.Parent.PlayerData)
+local TierService = require(script.Parent.TierService)
 
 local TimeOrb = {}
 
@@ -111,7 +112,11 @@ local function setupOrb(orb)
 			return
 		end
 
-		data.TimeLeft += Config.ORB_TIME_BONUS
+		-- Aller chercher une orbe est un geste : le palier le multiplie, comme un
+		-- clic sur le cookie.
+		local amount = math.max(1, math.round(Config.ORB_TIME_BONUS * TierService.Multiplier(player)))
+
+		data.TimeLeft += amount
 		PlayerData.NoteTime(data)
 		Remotes.TimeUpdated:FireClient(player, data.TimeLeft)
 		Sounds.PlayAt("orb_collect", orb)

@@ -18,6 +18,24 @@ function TimeFormat.Clock(seconds)
 	return string.format("%04d:%02d:%02d.%03d", hours, minutes, secs, millis)
 end
 
+-- Format court "1:23:45" / "23:45" : le chrono d'un AUTRE joueur, lu au-dessus
+-- de sa tete. Les millisecondes de TimeFormat.Clock y seraient illisibles, et les
+-- suffixes de TimeFormat.Duration changent de largeur a chaque seconde -- le
+-- panneau danserait.
+function TimeFormat.Short(seconds)
+	seconds = math.max(0, math.floor(seconds))
+
+	local hours = math.floor(seconds / 3600)
+	local minutes = math.floor((seconds % 3600) / 60)
+	local secs = seconds % 60
+
+	if hours > 0 then
+		return string.format("%d:%02d:%02d", hours, minutes, secs)
+	end
+
+	return string.format("%02d:%02d", minutes, secs)
+end
+
 -- Format compact "2h 30min 5s" (jamais en jours) utilise pour les mises et les grandes durees.
 --
 -- "units" (facultatif) porte les suffixes dans la langue du joueur : { hour, minute,

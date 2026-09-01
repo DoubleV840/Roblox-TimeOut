@@ -81,14 +81,17 @@ local function grant(player, product)
 			return false
 		end
 
-		-- Un achat = un niveau. Le +1 est sur : la reservation par PurchaseId
-		-- garantit qu'un meme receipt ne repasse jamais ici.
-		data.AutoClickers += 1
+		-- Un achat donne un plein ET un jeton a depenser. Le +1 est sur : la
+		-- reservation par PurchaseId garantit qu'un meme receipt ne repasse
+		-- jamais ici.
+		--
+		-- Le jeton n'est pas depense maintenant : le joueur choisira sa branche
+		-- quand il voudra, y compris a une prochaine session (voir AutoClicker).
+		AutoClicker.Grant(data)
 
-		Remotes.AutoClickUpdated:FireClient(player, data.AutoClickers)
+		AutoClicker.Announce(player, data)
 		Remotes.Notify:FireClient(player, "notify_autoclick_granted", {
-			level = data.AutoClickers,
-			rate = AutoClicker.RateAt(data.AutoClickers),
+			fuel = Config.AUTOCLICK_FUEL_BASE,
 		}, Colors.WIN)
 
 		return true
@@ -254,9 +257,9 @@ local function createSign(zone)
 end
 
 -- Le catalogue vit dans Config, que le client a deja : le serveur n'envoie que ce
--- que le client ne peut pas savoir, c'est-a-dire combien d'auto-cliqueurs le
--- joueur possede. Le client en deduit seul le palier a proposer, et le met a jour
--- tout seul sur AutoClickUpdated quand un achat aboutit.
+-- que le client ne peut pas savoir, c'est-a-dire l'etat de l'auto-cliqueur du
+-- joueur (debit, carburant, jetons en attente). Le client en deduit seul ce qu'il
+-- affiche, et se met a jour tout seul sur AutoClickUpdated quand un achat aboutit.
 local function sendPrompt(player, zone)
 	local kind = getKind(zone)
 
@@ -270,7 +273,7 @@ local function sendPrompt(player, zone)
 		return
 	end
 
-	Remotes.ShopPrompt:FireClient(player, zone, Config.SHOP_KIND_AUTOCLICK, data.AutoClickers)
+	Remotes.ShopPrompt:FireClient(player, zone, Config.SHOP_KIND_AUTOCLICK, AutoClicker.State(data))
 end
 
 local function setupZone(zone)

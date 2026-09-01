@@ -35,7 +35,7 @@ end
 local function onPlayerRemoving(player)
 	local data = PlayerData.Get(player)
 	if data then
-		TimeBalance.Submit(player, data.TimeLeft)
+		TimeBalance.Submit(player, data.TimeLeft, data.Tier)
 	end
 
 	PlayerData.Release(player)
@@ -78,7 +78,7 @@ function TimeService.GrantTime(player, seconds)
 	PlayerData.NoteTime(data)
 	Remotes.TimeUpdated:FireClient(player, data.TimeLeft)
 	Leaderstats.Refresh(player)
-	TimeBalance.Submit(player, data.TimeLeft)
+	TimeBalance.Submit(player, data.TimeLeft, data.Tier)
 
 	return true
 end
@@ -181,7 +181,7 @@ function TimeService.Start()
 			for _, player in Players:GetPlayers() do
 				local data = PlayerData.Get(player)
 				if data then
-					TimeBalance.Submit(player, data.TimeLeft)
+					TimeBalance.Submit(player, data.TimeLeft, data.Tier)
 				end
 			end
 		end

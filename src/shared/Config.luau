@@ -19,7 +19,9 @@ Config.LEADERBOARD_REFRESH_INTERVAL = 60 -- secondes entre rafraichissements (cl
 Config.LIVE_BOARD_REFRESH_INTERVAL = 3 -- secondes entre rafraichissements (classement en direct, en memoire)
 Config.BOARD_TAG = "HallOfFameBoard" -- tag a mettre sur la Part qui affiche le classement
 
-Config.TIME_BALANCE_DATASTORE_NAME = "TimeOutTimeBalance_v1"
+-- _v2 : la valeur stockee encode desormais le palier en plus du temps (voir
+-- TimeBalance). Les valeurs _v1 se seraient relues comme des temps divises par 10.
+Config.TIME_BALANCE_DATASTORE_NAME = "TimeOutTimeBalance_v2"
 Config.TIME_BALANCE_SYNC_INTERVAL = 5 -- secondes entre chaque sauvegarde du temps courant (pour les joueurs deco)
 
 Config.BET_TAG = "BetZone" -- tag a mettre sur la Part qui sert de zone de pari
@@ -78,22 +80,85 @@ Config.TIME_PRODUCTS = {
 }
 
 -- Auto-cliqueur : source de temps passive, TOTALEMENT independante du clic a la
--- main. Ni Config.CLICKER_REWARD ni le Chrono Boost (ClickPower) n'y touchent --
--- ameliorer ses clics n'ameliore pas l'auto-cliqueur, et inversement.
+-- main. Ni Config.CLICKER_REWARD ni le Chrono Boost (ClickPower) ni le palier de
+-- salle n'y touchent -- ameliorer ses clics n'ameliore pas l'auto-cliqueur, et
+-- inversement. C'est la seule chose du jeu qui produit du temps sans geste, et
+-- c'est pour ca qu'elle reste la seule chose qui ne s'obtienne qu'en Robux.
 --
--- Un seul Developer Product, rachetable a l'infini et a prix fixe : chaque achat
--- DOUBLE le debit.
---   1er achat -> AUTOCLICK_BASE_RATE      (1 s/sec)
---   2e        -> x2                       (2 s/sec)
---   3e        -> x4                       (4 s/sec)   et ainsi de suite.
+-- UN ACHAT DONNE TROIS CHOSES :
+--   * l'engin lui-meme, au premier achat (AUTOCLICK_BASE_RATE, 2 s/sec)
+--   * un plein de AUTOCLICK_FUEL_BASE
+--   * un JETON, a depenser dans l'une des deux branches :
+--       Puissance -> +AUTOCLICK_POWER_STEP s/sec, definitif
+--       Autonomie -> +AUTOCLICK_FUEL_STEP de carburant
 --
--- Equilibrage a garder en tete : le chrono descend d'1 seconde par seconde, donc
--- des le PREMIER achat le joueur ne perd plus de temps du tout. Le prix devrait
--- donc se situer vers le haut de l'echelle des paquets, pas vers le bas.
-Config.AUTOCLICK_PRODUCT = { productId = 3710399391, robux = 999 }
-Config.AUTOCLICK_BASE_RATE = 1 -- secondes gagnees par seconde, au 1er achat
-Config.AUTOCLICK_GROWTH = 2 -- multiplicateur du debit a chaque achat suivant
+-- Pourquoi un choix plutot qu'un versement : un cadeau qui tombe se subit, deux
+-- cartes obligent le joueur a lire sa propre situation -- il tient longtemps ou
+-- il frappe fort. Deux joueurs qui ont depense autant n'ont alors plus le meme
+-- auto-cliqueur. C'est la meme regle que les packs du lot 3.
+--
+-- Le jeton est REMIS AU JOUEUR, pas consomme a l'achat : le flux Roblox va du
+-- prompt a ProcessReceipt, et une intention stockee avant le prompt serait
+-- perdue si le joueur se deconnecte entre les deux. Le jeton, lui, vit dans la
+-- sauvegarde et attend.
+--
+-- Le debit monte de facon LINEAIRE (2, 4, 6, 8...) et non plus en doublant. Un
+-- debit qui double face a un prix fixe finit par rendre les paquets de temps
+-- ridicules : au 6e achat, l'ancienne courbe rapportait 128 h pour 99 R$, quand
+-- le paquet de 100 h en coute 1999. Voir plan2.md, etape 18.
+--
+-- Le 1er cran demarre a 2 s/sec et non a 1 (etape 17 du plan 2) : a 1 s/sec le
+-- debit annulait exactement le drain, le chrono se figeait, et le joueur payait
+-- pour regarder un compteur immobile sans savoir si ca marchait.
+--
+-- Le carburant (etape 18) : un auto-cliqueur infini tue la boucle du jeu --
+-- passe le premier achat, il n'y a plus rien a faire. Le debit reste acquis pour
+-- toujours, mais il ne tourne que tant qu'il reste du carburant. A sec, il
+-- s'arrete et attend un rachat.
+--
+-- ATTENTION : le champ "robux" ne sert QU'A L'AFFICHAGE. Le vrai prix est celui
+-- du Creator Dashboard ; changer la valeur ici ne change pas ce qui est facture.
+Config.AUTOCLICK_PRODUCT = { productId = 3710399391, robux = 99 }
+Config.AUTOCLICK_BASE_RATE = 2 -- secondes gagnees par seconde, des le 1er achat
+Config.AUTOCLICK_POWER_STEP = 2 -- s/sec ajoutees par jeton depense en Puissance
 Config.AUTOCLICK_INTERVAL = 1 -- periode de la boucle (le temps credite suit le delai reellement ecoule)
+
+-- Carburant, en secondes de FONCTIONNEMENT. Un achat en donne toujours BASE ;
+-- un jeton depense en Autonomie ajoute STEP par-dessus.
+--
+-- Le reservoir n'est pas plafonne, et le carburant stocke brule au debit DU
+-- MOMENT : prendre l'autonomie plusieurs fois puis la puissance rapporte donc
+-- plus qu'alterner. C'est assume -- avec un debit lineaire l'ecart reste dans un
+-- facteur 2 ou 3, la ou il aurait explose avec l'ancien debit qui doublait.
+Config.AUTOCLICK_FUEL_BASE = 2 * 3600
+Config.AUTOCLICK_FUEL_STEP = 4 * 3600
+
+-- L'auto-cliqueur tourne AUSSI hors ligne : le carburant brule pendant l'absence
+-- et le temps gagne est credite au retour.
+--
+-- Attention a ce que ca implique : hors ligne, le chrono du joueur est GELE (il
+-- ne perd rien, voir TimeService, qui n'itere que sur les joueurs connectes).
+-- Une heure hors ligne rapporte donc le debit PLEIN, la ou une heure de jeu ne
+-- rapporte que le debit moins le drain d'1 s/s. L'ecart ne pese qu'au debut :
+-- passe quelques crans de puissance, le drain ne compte plus.
+--
+-- Les deux garde-fous ci-dessous sont neutres par defaut. Ils sont la pour
+-- pouvoir corriger en une ligne, sans toucher au code, si le test montre que
+-- l'auto-cliqueur mange les paquets de temps.
+Config.AUTOCLICK_OFFLINE_RATIO = 1 -- part du debit creditee hors ligne (0.5 = moitie)
+Config.AUTOCLICK_OFFLINE_MAX = 0 -- plafond de secondes d'absence creditees ; 0 = pas de plafond
+
+-- Les deux branches du jeton, telles qu'elles transitent sur le reseau.
+Config.AUTOCLICK_CHOICE_POWER = "Power"
+Config.AUTOCLICK_CHOICE_FUEL = "Fuel"
+
+-- La jauge du client fait descendre le compte a rebours toute seule (1 s par
+-- seconde, comme le chrono). Le serveur la recale a ce rythme pour que les deux
+-- ne divergent pas -- sans envoyer un message par seconde et par joueur.
+Config.AUTOCLICK_SYNC_INTERVAL = 15
+
+-- Sous ce seuil (en secondes), la jauge passe au rouge et pulse.
+Config.AUTOCLICK_LOW_FUEL = 60
 
 -- Paris verrouilles : une zone ne s'ouvre au joueur qu'une fois qu'il a possede
 -- au moins sa mise sur son propre chrono -- et elle reste ouverte pour toujours.
@@ -101,6 +166,55 @@ Config.AUTOCLICK_INTERVAL = 1 -- periode de la boucle (le temps credite suit le 
 -- secondes) sur la Part permet d'en imposer un autre.
 Config.BET_UNLOCK_ATTRIBUTE = "UnlockAt"
 Config.BET_LOCK_REFRESH_INTERVAL = 2 -- secondes entre deux verifications de deverrouillage
+
+--------------------------------------------------------------------------------
+-- Paliers (plan 2)
+--------------------------------------------------------------------------------
+-- L'echelle elle-meme (noms, prix, multiplicateurs, raretes) vit dans
+-- src/shared/Tiers.luau. Ici, uniquement ce qui se pose dans Studio et les
+-- garde-fous.
+
+Config.TIER_GATE_TAG = "TierGate" -- tag a mettre sur la Part transparente qui bouche un passage
+Config.TIER_WINDOW_TAG = "TierWindow" -- tag a mettre sur un mur vitre donnant sur l'etage du dessus
+Config.TIER_TARGET_ATTRIBUTE = "TargetTier" -- attribut nombre : l'etage desservi / regarde
+
+-- "Payer ne peut pas tuer." Une entree n'est acceptee que s'il reste au joueur,
+-- APRES paiement, au moins ce plancher. Il monte avec le prix du palier : 60 s
+-- de rab a l'entree du Buffet, 20 h a l'entree du Terminus -- sinon un joueur
+-- pourrait vider un chrono de 1000 h et se retrouver a une minute de la mort.
+Config.TIER_SAFETY_MARGIN = 60 -- secondes minimum restantes apres paiement
+Config.TIER_SAFETY_FRACTION = 0.02 -- ... ou ce pourcentage du prix paye, si c'est plus
+
+-- Groupes de collision : une barriere ne bloque QUE les joueurs qui n'ont pas
+-- encore son etage (voir TierService). Les noms sont construits a partir de ces
+-- prefixes, un par palier -- rien a creer a la main dans Studio.
+Config.TIER_GATE_COLLISION_PREFIX = "TierGate_"
+Config.TIER_PLAYER_COLLISION_PREFIX = "TierPlayer_"
+
+--------------------------------------------------------------------------------
+-- Lot 2 -- donner envie de monter
+--------------------------------------------------------------------------------
+
+-- Les neons du bas de l'immeuble gresillent. Le tag se pose sur la lumiere
+-- (PointLight, SurfaceLight, SpotLight) ou sur la Part Neon qui la porte -- le
+-- jeu accepte les deux et fait clignoter ce qu'il trouve.
+--
+-- RIEN au-dessus du palier 3 : le gresillement est la signature du sous-sol, et
+-- il ne veut plus rien dire si tout l'immeuble clignote.
+Config.FLICKER_TAG = "FlickerLight"
+
+-- Ce que les AUTRES joueurs lisent d'un joueur : deux attributs poses sur
+-- l'instance Player, donc repliques a tout le monde (voir src/server/Presence).
+-- Remotes.TimeUpdated ne parle qu'au proprietaire du chrono ; il ne pouvait donc
+-- pas alimenter le panneau au-dessus des tetes.
+Config.PRESENCE_TIER_ATTRIBUTE = "Tier"
+Config.PRESENCE_TIME_ATTRIBUTE = "TimeLeft"
+Config.PRESENCE_SYNC_INTERVAL = 1 -- secondes entre deux publications (en secondes entieres)
+
+-- Panneau au-dessus des personnages : pleinement lisible en deca de FADE_START,
+-- efface a FADE_END. Un hall plein ne doit pas devenir un mur de texte.
+Config.NAMEPLATE_FADE_START = 55 -- studs
+Config.NAMEPLATE_FADE_END = 110 -- studs
 
 --------------------------------------------------------------------------------
 -- Son

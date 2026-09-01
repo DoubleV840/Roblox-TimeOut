@@ -170,6 +170,39 @@ SoundLibrary.List = {
 	-- niveau (voir Soundscape), celui d'ici ne sert pas.
 	autoclick_hum = { id = "rbxasset://sounds/action_falling.mp3", volume = 0.12, looped = true },
 	autoclick_bought = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.65, pitch = 1.3 },
+	-- Panne seche : un lourd declic de machine qui s'arrete, tres grave. Il
+	-- arrive en meme temps que le bourdonnement qui se coupe -- c'est le silence
+	-- qui suit qui doit se remarquer, pas le bruit.
+	autoclick_dry = { id = "rbxasset://sounds/switch.wav", volume = 0.5, pitch = 0.35 },
+
+	----------------------------------------------------------------------------
+	-- Paliers (3D, sauf annonce)
+	----------------------------------------------------------------------------
+
+	-- Une barriere fermee ronronne : c'est ce qui attire l'oeil vers l'etage du
+	-- dessus avant meme d'avoir lu le panneau.
+	tier_gate_hum = { id = "rbxasset://sounds/action_falling.mp3", volume = 0.14, pitch = 0.7, looped = true, range = 55 },
+	-- Le portique qui s'ouvre : le pitch monte avec l'etage paye, donc une
+	-- montee au Terminus s'entend plus haut qu'une montee au Buffet.
+	tier_gate_open = { id = "rbxasset://sounds/unsheath.wav", volume = 0.75, range = 120 },
+	-- Refus sec quand le chrono ne suffit pas (marge de securite comprise).
+	tier_denied = { id = "rbxasset://sounds/hit.wav", volume = 0.5, pitch = 0.45 },
+	-- L'annonce entendue par TOUT le serveur quand quelqu'un monte : en 2D, dans
+	-- la tete de chacun, y compris a l'autre bout de la map.
+	tier_announce = { id = "rbxasset://sounds/metal.ogg", volume = 0.55, pitch = 1.9 },
+	-- Ajoute SOUS l'annonce a partir des hauts paliers : la montee au Terminus
+	-- doit s'entendre autrement qu'une montee au Buffet, pas seulement plus fort.
+	tier_announce_big = { id = "rbxasset://sounds/bass.wav", volume = 0.7, pitch = 0.65 },
+
+	----------------------------------------------------------------------------
+	-- Decor du bas de l'immeuble (3D)
+	----------------------------------------------------------------------------
+
+	-- Le bourdonnement d'un neon fatigue. Tres discret et de courte portee : il
+	-- y en a un par tube, et le Quai en est couvert -- ils doivent s'additionner
+	-- en ambiance, pas en vacarme. Le volume et le pitch suivent le clignotement
+	-- (voir src/client/Flicker), donc un tube au ras de l'extinction crachote.
+	neon_buzz = { id = "rbxasset://sounds/action_falling.mp3", volume = 0.06, pitch = 2.6, looped = true, range = 22 },
 
 	----------------------------------------------------------------------------
 	-- Panneau de classement (3D)

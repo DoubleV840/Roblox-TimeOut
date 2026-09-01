@@ -11,9 +11,30 @@ local TimeBalance = {}
 
 local store = DataStoreService:GetOrderedDataStore(Config.TIME_BALANCE_DATASTORE_NAME)
 
-function TimeBalance.Submit(player, timeLeft)
+-- Un OrderedDataStore ne stocke qu'un entier, et le classement a besoin de DEUX
+-- informations : le temps (qui donne l'ordre) et le palier (qui donne le badge).
+-- On les met dans le meme nombre -- le temps en secondes, le palier dans le
+-- chiffre des unites. Le tri reste exact : le palier ne pese qu'une unite sur
+-- des secondes multipliees par dix.
+--
+-- Aller chercher le palier dans le DataStore des joueurs demanderait une lecture
+-- par ligne toutes les 3 secondes : hors de question.
+local TIER_BASE = 10
+
+local function encode(timeLeft, tier)
+	local seconds = math.max(0, math.floor(timeLeft))
+	local slot = math.clamp(math.floor(tier or 1), 1, TIER_BASE) - 1
+
+	return seconds * TIER_BASE + slot
+end
+
+local function decode(value)
+	return math.floor(value / TIER_BASE), (value % TIER_BASE) + 1
+end
+
+function TimeBalance.Submit(player, timeLeft, tier)
 	local ok, err = pcall(function()
-		store:SetAsync("Player_" .. player.UserId, math.max(0, math.floor(timeLeft)))
+		store:SetAsync("Player_" .. player.UserId, encode(timeLeft, tier))
 	end)
 
 	if not ok then
@@ -21,7 +42,7 @@ function TimeBalance.Submit(player, timeLeft)
 	end
 end
 
--- Renvoie jusqu'a `count` entrees { userId, name, timeLeft }, triees du plus grand au plus petit.
+-- Renvoie jusqu'a `count` entrees { userId, name, timeLeft, tier }, triees du plus grand au plus petit.
 function TimeBalance.GetTop(count)
 	local ok, pages = pcall(function()
 		return store:GetSortedAsync(false, count)
@@ -47,7 +68,8 @@ function TimeBalance.GetTop(count)
 			end
 		end
 
-		table.insert(results, { userId = userId, name = name, timeLeft = entry.value })
+		local timeLeft, tier = decode(entry.value)
+		table.insert(results, { userId = userId, name = name, timeLeft = timeLeft, tier = tier })
 	end
 
 	return results

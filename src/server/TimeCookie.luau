@@ -13,6 +13,7 @@ local TextFx = require(ReplicatedStorage.Shared.TextFx)
 local Sounds = require(ReplicatedStorage.Shared.Sounds)
 local PlayerData = require(script.Parent.PlayerData)
 local ClickChampion = require(script.Parent.ClickChampion)
+local TierService = require(script.Parent.TierService)
 
 local TimeCookie = {}
 
@@ -122,7 +123,14 @@ local function setupCookie(part)
 			return
 		end
 
-		local amount = Config.CLICKER_REWARD * data.ClickPower
+		-- Le palier multiplie ce que rapporte le GESTE, pas le chrono : c'est
+		-- toute la difference entre monter d'etage et acheter un auto-cliqueur.
+		-- Arrondi a la seconde, avec un plancher a 1 : un clic ne rapporte
+		-- jamais rien.
+		local amount = math.max(
+			1,
+			math.round(Config.CLICKER_REWARD * data.ClickPower * TierService.Multiplier(player))
+		)
 		data.TimeLeft += amount
 		PlayerData.NoteTime(data)
 		Remotes.TimeUpdated:FireClient(player, data.TimeLeft)

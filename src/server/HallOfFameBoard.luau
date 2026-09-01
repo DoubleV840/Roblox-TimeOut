@@ -6,7 +6,8 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Config = require(ReplicatedStorage.Shared.Config)
-local Ranks = require(ReplicatedStorage.Shared.Ranks)
+local Badge = require(ReplicatedStorage.Shared.Badge)
+local Tiers = require(ReplicatedStorage.Shared.Tiers)
 local Fonts = require(ReplicatedStorage.Shared.Fonts)
 local TextFx = require(ReplicatedStorage.Shared.TextFx)
 local Locale = require(ReplicatedStorage.Shared.Locale)
@@ -25,14 +26,14 @@ local function buildEntries()
 		local data = PlayerData.Get(player)
 		if data then
 			onlineUserIds[player.UserId] = true
-			table.insert(entries, { name = player.Name, timeLeft = data.TimeLeft })
+			table.insert(entries, { name = player.Name, timeLeft = data.TimeLeft, tier = data.Tier })
 		end
 	end
 
 	-- joueurs deconnectes : derniere valeur sauvegardee (en pause)
 	for _, entry in TimeBalance.GetTop(Config.LEADERBOARD_SIZE) do
 		if entry.userId and not onlineUserIds[entry.userId] then
-			table.insert(entries, { name = entry.name, timeLeft = entry.timeLeft })
+			table.insert(entries, { name = entry.name, timeLeft = entry.timeLeft, tier = entry.tier })
 		end
 	end
 
@@ -68,7 +69,7 @@ local function newRow(index)
 	position.LayoutOrder = 1
 	position.Parent = row
 
-	local badge = Ranks.NewBadge(Ranks.List[1])
+	local badge = Badge.New(Tiers.Get(1))
 	badge.Size = UDim2.new(0, 0, 0.8, 0)
 	badge.LayoutOrder = 2
 	badge.Parent = row
@@ -101,7 +102,7 @@ end
 
 local function fillRow(row, entry)
 	if not entry then
-		Ranks.ApplyBadge(row.badge, Ranks.List[1])
+		Badge.Apply(row.badge, Tiers.Get(1))
 		row.badge.Visible = false
 		row.name.Text = "---"
 		TextFx.Mark(row.name, 0, Color3.fromRGB(110, 110, 110))
@@ -110,18 +111,21 @@ local function fillRow(row, entry)
 		return
 	end
 
-	local rank = Ranks.For(entry.timeLeft)
+	-- Le badge affiche le PALIER atteint, pas un rang calcule sur le temps
+	-- possede : c'est la meme regle que le HUD, et les deux ne peuvent plus se
+	-- contredire.
+	local tier = Tiers.Get(entry.tier)
 
-	-- Plus le joueur est haut dans les rangs, plus sa ligne s'agite : en un coup
+	-- Plus le joueur est haut dans l'echelle, plus sa ligne s'agite : en un coup
 	-- d'oeil on voit qui domine le classement sans lire les chiffres.
-	local intensity = (rank.index - 1) / (#Ranks.List - 1)
+	local intensity = (tier.index - 1) / (Tiers.LAST - 1)
 
 	row.badge.Visible = true
-	Ranks.ApplyBadge(row.badge, rank)
+	Badge.Apply(row.badge, tier)
 	row.name.Text = entry.name
-	TextFx.Mark(row.name, intensity, rank.color)
+	TextFx.Mark(row.name, intensity, tier.color)
 	Locale.Mark(row.timeLabel, "board_time", { amount = entry.timeLeft })
-	TextFx.Mark(row.timeLabel, intensity * 0.6, rank.color)
+	TextFx.Mark(row.timeLabel, intensity * 0.6, tier.color)
 end
 
 local function setupBoard(part)

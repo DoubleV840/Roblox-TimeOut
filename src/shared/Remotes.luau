@@ -23,6 +23,10 @@ local NAMES = {
 	"AutoClickUpdated",
 	"BetLockUpdated",
 	"BetRoundsUpdated",
+	"TierUpdated",
+	"TierBuy",
+	"TierAnnounce",
+	"AutoClickChoose",
 }
 
 local Remotes = {}

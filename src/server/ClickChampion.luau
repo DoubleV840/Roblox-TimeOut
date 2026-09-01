@@ -84,7 +84,13 @@ local function totalRate(player)
 		return 0
 	end
 
-	return manualRate(player) + AutoClicker.RateAt(data.AutoClickers)
+	-- Un auto-cliqueur a sec ne compte pas : le panneau annonce ce qui rentre
+	-- vraiment, pas ce que le joueur a paye.
+	if (data.AutoClickFuel or 0) <= 0 then
+		return manualRate(player)
+	end
+
+	return manualRate(player) + AutoClicker.Rate(data)
 end
 
 local function findChampion()

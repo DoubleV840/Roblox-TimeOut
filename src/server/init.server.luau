@@ -18,8 +18,19 @@ end
 local Movement = require(script.Movement)
 Movement.Start()
 
+-- Les paliers demarrent tot : les barrieres, les groupes de collision et le
+-- point de reapparition doivent etre en place avant qu'un joueur n'arrive, et
+-- tout ce qui rapporte du temps (cookie, orbes, paris) lit le multiplicateur.
+local TierService = require(script.TierService)
+TierService.Start()
+
 local TimeService = require(script.TimeService)
 TimeService.Start()
+
+-- Rend public le palier et le chrono de chaque joueur, pour que les panneaux
+-- au-dessus des tetes puissent les lire chez les AUTRES (lot 2, etape 11).
+local Presence = require(script.Presence)
+Presence.Start()
 
 local TimeOrb = require(script.TimeOrb)
 TimeOrb.Start()
