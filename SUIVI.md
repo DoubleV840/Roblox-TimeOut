@@ -47,16 +47,20 @@ Rien à changer dans le code : `Config.AUTOCLICK_PRODUCT` affiche déjà 99. Le 
 
 Le cœur du jeu. **Deux salles suffisent** pour valider toute la mécanique des paliers ; les six autres attendent que le test passe.
 
-- [ ] **2.1** — Construire le Quai (en bas) et une salle au-dessus. Murs gris, aucun décor.
-- [ ] **2.2** — Vérifier qu'il n'existe **aucun autre chemin** entre les deux : pas de rebord à longer, pas de saut possible, pas de trou dans le plafond, pas de mur escaladable.
+**Les salles sont côte à côte, en enfilade — pas empilées.** Le jeu continue de parler d'« étages » et de « monter » : c'est la fiction, et rien dans le code n'en dépend.
+
+- [ ] **2.1** — Construire le Quai et la salle suivante **à côté**, séparées par une cloison mitoyenne. Murs gris, aucun décor.
+- [ ] **2.2** — Vérifier qu'il n'existe **aucun autre chemin** entre les deux : pas de rebord à longer, pas de saut possible, pas de trou dans la cloison, pas de mur escaladable, pas de passage par le toit ni par-dessous.
 - [ ] **2.3** — Poser une Part qui bouche **entièrement** l'ouverture (un joueur passe par un interstice de 2 studs) : `Anchored` ✓, `CanCollide` ✓, `Transparency` ≈ `0.6`, `Material` `Glass`, `Color` `235, 235, 235`.
 - [ ] **2.4** — Sur cette Part : tag **`TierGate`** + attribut **nombre** **`TargetTier`** = `2`.
 - [ ] **2.5** — Ajouter une **SurfaceGui vide** dans la Part, `Face` réglée sur le côté **d'où arrivent les joueurs** (celui du bas).
-- [ ] **2.6** — Une **SpawnLocation** par salle, `Neutral` ✓. Sur celle du Quai, attribut **nombre** **`TargetTier`** = `1`.
+- [ ] **2.6** — Une **SpawnLocation** par salle, `Neutral` ✓. Sur celle du Quai, attribut **nombre** **`TargetTier`** = `1` — **obligatoire** en enfilade (voir l'encart).
 
 > L'étape **2.2** est la plus importante du projet. Si l'échelle des paliers se contourne à pied, le jeu n'a plus d'objet.
 >
 > Ne touche pas à `CollisionGroup` : le serveur réassigne tout au démarrage.
+>
+> L'attribut `TargetTier` = `1` de l'étape **2.6** n'est plus facultatif. Sans lui, le jeu se rabat sur la SpawnLocation **la plus basse** de la map (`TierService.luau:184`) — une convention qui ne valait que pour des salles empilées. En enfilade elles sont toutes à la même hauteur, et la réapparition tomberait dans une salle au hasard.
 
 Détail complet : `studio.md`, *lot 1*.
 
@@ -101,7 +105,7 @@ Même recette qu'en phase 2, une barrière par passage. Une seule suffit par pas
 
 Les prix s'affichent tout seuls — ils se règlent dans `src/shared/Tiers.luau`, jamais dans Studio.
 
-**Contrainte de construction** : les salles doivent être **mitoyennes**, pas dispersées. Un escalier vitré qui longe les étages est la disposition la plus simple à tenir.
+**Contrainte de construction** : les salles doivent être **mitoyennes**, pas dispersées — une enfilade, chaque salle partageant une cloison avec la suivante.
 
 ---
 
@@ -109,9 +113,9 @@ Les prix s'affichent tout seuls — ils se règlent dans `src/shared/Tiers.luau`
 
 - [ ] **5.1** — Rendre le Quai **franchement laid** : béton fissuré, carrelage manquant, flaques, sacs poubelle, affiches décollées, graffitis, néons verdâtres.
 - [ ] **5.2** — Soigner chaque étage plus que le précédent (le tableau des matériaux est dans `studio.md`, *lot 2*).
-- [ ] **5.3** — Tag **`FlickerLight`** sur chaque lumière du bas de l'immeuble. **Aucun au-dessus du palier 3** — c'est la signature du sous-sol.
+- [ ] **5.3** — Tag **`FlickerLight`** sur chaque lumière des deux premières salles. **Aucun au-delà du palier 3** — c'est la signature du début de parcours.
 - [ ] **5.4** — Sur chaque mur vitré : tag **`TierWindow`** + attribut **nombre** **`TargetTier`** (l'étage qu'on voit à travers) + une **SurfaceGui vide** orientée côté joueurs.
-- [ ] **5.5** — Si les salles hautes disparaissent vues d'en bas : dans *Workspace*, augmenter `StreamingTargetRadius` ou décocher `StreamingEnabled`.
+- [ ] **5.5** — Si les salles suivantes disparaissent vues à travers une vitre : dans *Workspace*, augmenter `StreamingTargetRadius` ou décocher `StreamingEnabled`. Une enfilade éloigne la dernière salle de la première plus qu'un empilement.
 
 > Si le Quai est joli, plus rien au-dessus ne fait envie. C'est le seul étage que tout le monde voit.
 

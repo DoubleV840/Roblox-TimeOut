@@ -19,6 +19,7 @@ La règle qui gouverne tout le reste : **le premier palier se franchit en une mi
 - **On monte en payant, on redescend gratuitement.** Un joueur palier 5 circule librement entre 1 et 5. Seul le pas vers le palier suivant est payant, et il ne peut pas se sauter.
 - **Payer ne peut pas tuer.** Une entrée qui laisserait le joueur au ras de zéro est refusée. Se suicider en achetant un étage serait la pire première impression possible.
 - **L'auto-cliqueur cesse d'être éternel.** Il se vend désormais par tranches de temps de fonctionnement, et son premier cran disparaît (lot 4).
+- **Les 8 salles sont en enfilade, pas empilées.** Elles se suivent côte à côte, chacune séparée de la suivante par sa barrière. Le vocabulaire du jeu garde « étage » et « monter » — c'est la fiction du Terminal, et aucune ligne de code ne dépend de la géométrie. Seule conséquence technique : l'attribut `TargetTier` = `1` sur la SpawnLocation du Quai devient **obligatoire**, le repli « la SpawnLocation la plus basse » ne voulant plus rien dire.
 - **Toute grosse récompense passe par un pack à trois choix**, jamais par un don direct. Un cadeau qui tombe tout seul se subit ; trois cartes forcent le joueur à lire sa propre situation et à décider.
 
 ## Le tableau des paliers
@@ -140,7 +141,7 @@ Le but du lot : que le jeu ait des étages et qu'on puisse y monter. Rien de jol
   **Dans Studio**
   - Un point de réapparition (**SpawnLocation**) dans chaque salle, `Neutral` coché.
   - Celui du Quai est le seul avec une priorité de réapparition : c'est là qu'on revient après une mort.
-  - Vérifier qu'**aucun chemin de marche** ne relie un étage au suivant en contournant sa barrière — pas de rebord, pas de saut possible, pas de trou dans le plafond. La barrière est le seul passage, sinon toute l'échelle se contourne à pied.
+  - Vérifier qu'**aucun chemin de marche** ne relie un étage au suivant en contournant sa barrière — pas de rebord, pas de saut possible, pas de trou dans la cloison, pas de passage par le toit. La barrière est le seul passage, sinon toute l'échelle se contourne à pied.
 
   *Fini quand :* un joueur palier 5 traverse ses quatre barrières à pied sans rien payer, un joueur palier 1 se cogne dessus, et mourir renvoie au Quai sans perdre le palier.
 
@@ -182,7 +183,7 @@ Le lot 1 rend la montée possible ; celui-ci la rend désirable. C'est ici que s
 
 - [ ] **Étape 9 — Les vitres.** Un mur vitré entre chaque salle et celle du dessus, pour qu'on voie littéralement les joueurs mieux lotis vivre leur vie.
 
-  Cela impose que les salles soient **mitoyennes**, pas dispersées : un escalier vitré qui longe les étages est la disposition la plus simple à tenir.
+  Cela impose que les salles soient **mitoyennes**, pas dispersées : une enfilade, chaque salle partageant une cloison avec la suivante.
 
   **Dans Studio**
   - Des Parts `Material` = `Glass`, `Transparency` vers `0.5`, `CanCollide` coché, `Reflectance` faible.
@@ -622,7 +623,7 @@ Chaque pack propose exactement une carte de chaque famille.
 
 Vue d'ensemble de la construction manuelle, une fois toutes les étapes faites. La marche à suivre, étape par étape et dans l'ordre, est dans `studio.md`.
 
-- **8 salles mitoyennes**, empilées ou en enfilade le long d'un escalier vitré, chacune dans la charte visuelle du lot 2.
+- **8 salles mitoyennes en enfilade**, chacune dans la charte visuelle du lot 2.
 - **7 barrières transparentes**, une par passage, taguées `TierGate` avec leur `TargetTier`.
 - **Des murs vitrés** entre chaque salle et celle du dessus, tagués `TierWindow`.
 - **Un point de réapparition par salle**, celui du Quai étant celui où l'on revient après une mort.

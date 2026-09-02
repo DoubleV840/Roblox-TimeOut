@@ -43,15 +43,17 @@ rojo plugin install
 
 ---
 
-## À faire maintenant — lot 1, la verticalité
+## À faire maintenant — lot 1, l'échelle des paliers
 
 De quoi tester la mécanique. **Deux salles suffisent** pour valider le tout ; les six autres viennent après, une fois qu'on sait que ça marche.
 
-### 1. Deux salles superposées
+### 1. Deux salles voisines
 
-Le Quai en bas, une salle au-dessus. Un seul passage entre les deux — une porte, une cage d'escalier, une ouverture dans le plafond. Pas de décor pour l'instant : des murs gris font l'affaire.
+**Les salles sont côte à côte, en enfilade — pas empilées.** Le Quai, puis la salle suivante à côté. Un seul passage entre les deux : une porte, un couloir, une ouverture dans la cloison mitoyenne. Pas de décor pour l'instant, des murs gris font l'affaire.
 
-**Le point le plus important de tout ce fichier** : il ne doit exister **aucun autre chemin** entre les deux salles. Pas de rebord à longer, pas de saut possible, pas de trou dans le plafond, pas de mur escaladable. La barrière est le seul passage — sinon toute l'échelle des paliers se contourne à pied et le jeu n'a plus d'objet.
+Le jeu parle toujours d'« étages » et de « monter » : c'est la fiction du Terminal, et elle tient très bien avec une enfilade. Seule la géométrie change, rien dans le code n'en dépend.
+
+**Le point le plus important de tout ce fichier** : il ne doit exister **aucun autre chemin** entre les deux salles. Pas de rebord à longer, pas de saut possible, pas de trou dans la cloison, pas de mur escaladable, pas de passage par le toit ni par-dessous. La barrière est le seul passage — sinon toute l'échelle des paliers se contourne à pied et le jeu n'a plus d'objet.
 
 ### 2. La barrière
 
@@ -84,7 +86,9 @@ Si tu n'en mets pas, le panneau se pose quand même, sur la face avant de la Par
 
 Une **SpawnLocation** par salle, `Neutral` coché.
 
-Sur celle du **Quai**, ajoute l'attribut **nombre** **`TargetTier`** = `1`. C'est là qu'on revient après une mort. Sans cet attribut, le jeu prend la SpawnLocation la plus basse de la map — ce qui marche aussi, tant que le Quai est bien l'étage du bas.
+Sur celle du **Quai**, ajoute l'attribut **nombre** **`TargetTier`** = `1`. C'est là qu'on revient après une mort.
+
+**Cet attribut est obligatoire ici.** Sans lui, le jeu se rabat sur la SpawnLocation la plus basse de la map (`TierService.luau:184`) — une convention qui ne vaut que pour des salles empilées. En enfilade, toutes les SpawnLocations sont à la même hauteur et le jeu en choisirait une au hasard : on ressusciterait dans n'importe quelle salle.
 
 ### 5. Les six barrières suivantes
 
@@ -183,15 +187,15 @@ Puis chaque étage plus soigné que le précédent :
 
 ### Les tags à poser
 
-- Tag **`FlickerLight`** sur chaque lumière du bas de l'immeuble (`PointLight`, `SurfaceLight`, ou la Part `Neon` qui la porte). Le grésillement est géré par le jeu. **Aucun au-dessus du palier 3** : c'est la signature du sous-sol.
+- Tag **`FlickerLight`** sur chaque lumière des deux premières salles (`PointLight`, `SurfaceLight`, ou la Part `Neon` qui la porte). Le grésillement est géré par le jeu. **Aucun au-delà du palier 3** : c'est la signature du début de parcours.
 - Tag **`TierWindow`** + attribut nombre **`TargetTier`** sur chaque mur vitré, avec l'étage qu'on voit à travers.
 
 Comme sur les barrières, ajoute une **SurfaceGui vide** dans la vitre et règle sa `Face` sur le côté d'où arrivent les joueurs. Sans elle, le panneau se pose sur la face avant de la Part — probablement du mauvais côté.
 
 ### Deux contraintes de construction
 
-- **Les salles doivent être mitoyennes**, pas dispersées. Un escalier vitré qui longe les étages est la disposition la plus simple à tenir.
-- Si les salles hautes disparaissent quand on les regarde d'en bas, c'est le chargement progressif : dans *Workspace*, augmente `StreamingTargetRadius`, ou décoche `StreamingEnabled`. Une vitre qui donne sur le vide annule tout l'intérêt de l'étape.
+- **Les salles doivent être mitoyennes**, pas dispersées : une enfilade, chaque salle partageant une cloison avec la suivante. C'est la disposition retenue, et la plus simple à tenir.
+- Si les salles suivantes disparaissent quand on les regarde à travers une vitre, c'est le chargement progressif : dans *Workspace*, augmente `StreamingTargetRadius`, ou décoche `StreamingEnabled`. Une vitre qui donne sur le vide annule tout l'intérêt de l'étape — et une enfilade éloigne davantage la dernière salle de la première qu'un empilement.
 
 ### Le test
 
@@ -203,7 +207,7 @@ Avec **un** client :
 
 Avec **deux** clients (*Test → Clients and Servers*, 2 joueurs) :
 
-- [ ] Depuis le Quai, on voit bouger l'autre joueur à l'étage au-dessus, à travers la vitre.
+- [ ] Depuis le Quai, on voit bouger l'autre joueur dans la salle voisine, à travers la vitre.
 - [ ] Chacun voit au-dessus de la tête de l'autre son pseudo, son badge de palier et son chrono qui défile — et **pas le sien**.
 - [ ] Le chrono du panneau vire au vert→rouge comme le HUD : on repère d'un coup d'œil qui est en train de mourir.
 - [ ] En s'éloignant, le panneau de l'autre s'efface, puis disparaît.

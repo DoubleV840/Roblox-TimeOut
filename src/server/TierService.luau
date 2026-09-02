@@ -172,8 +172,11 @@ end
 --------------------------------------------------------------------------------
 
 -- Le point de reapparition du Quai : celui qui porte l'attribut TargetTier = 1,
--- ou, a defaut, le plus bas de la map -- le Quai est le sous-sol, c'est une
--- convention qui se tient sans rien avoir a taguer.
+-- ou, a defaut, le plus bas de la map.
+--
+-- Le repli ne vaut que pour des salles empilees. La map est en enfilade : les
+-- SpawnLocations sont toutes a la meme hauteur, donc l'attribut TargetTier = 1
+-- sur celle du Quai est OBLIGATOIRE, sinon la reapparition tombe au hasard.
 local quaiSpawn = nil
 
 local function findQuaiSpawn()
