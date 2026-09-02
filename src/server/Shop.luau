@@ -2,11 +2,12 @@
 -- Robux. Le client demande un achat, le serveur declenche le prompt Roblox, et
 -- c'est ProcessReceipt qui credite.
 --
--- Deux sortes de guichet, choisies par l'attribut Config.SHOP_KIND_ATTRIBUTE sur
--- la Part ("Time" par defaut) :
+-- Trois sortes de guichet, choisies par l'attribut Config.SHOP_KIND_ATTRIBUTE
+-- sur la Part ("Time" par defaut) :
 --   "Time"      -> paquets de secondes (Config.TIME_PRODUCTS)
 --   "AutoClick" -> auto-cliqueur (Config.AUTOCLICK_PRODUCT, un seul produit
---                  rachetable a l'infini : chaque achat double le debit)
+--                  rachetable a l'infini : un plein et un jeton a chaque achat)
+--   "Pack"      -> packs a trois cartes (Config.PACK_PRODUCTS, lot 3)
 --
 -- Deux regles non negociables pour l'argent reel :
 --
@@ -37,6 +38,7 @@ local Sounds = require(ReplicatedStorage.Shared.Sounds)
 local PlayerData = require(script.Parent.PlayerData)
 local TimeService = require(script.Parent.TimeService)
 local AutoClicker = require(script.Parent.AutoClicker)
+local Packs = require(script.Parent.Packs)
 
 local Shop = {}
 
@@ -58,6 +60,15 @@ end
 
 if Config.AUTOCLICK_PRODUCT.productId ~= 0 then
 	productsById[Config.AUTOCLICK_PRODUCT.productId] = { kind = Config.SHOP_KIND_AUTOCLICK }
+end
+
+-- Les packs (lot 3, etape 16). Tant que leurs productId valent 0, ils n'existent
+-- pas dans le Creator Dashboard : le guichet ne les affiche pas et le serveur
+-- refuse de les vendre -- exactement comme un paquet de temps sans identifiant.
+for _, product in Config.PACK_PRODUCTS do
+	if product.productId ~= 0 then
+		productsById[product.productId] = { kind = Config.SHOP_KIND_PACK, rarity = product.rarity }
+	end
 end
 
 -- Filet de securite en memoire : si UpdateAsync a credite puis a echoue en
@@ -95,6 +106,13 @@ local function grant(player, product)
 		}, Colors.WIN)
 
 		return true
+	end
+
+	if product.kind == Config.SHOP_KIND_PACK then
+		-- Packs.Grant tire les trois cartes et les SAUVEGARDE : le pack achete
+		-- attend dans la pile, exactement comme celui offert par une montee de
+		-- palier. Un joueur qui se deconnecte avant de l'ouvrir le retrouve.
+		return Packs.Grant(player, product.rarity, "notify_pack_bought")
 	end
 
 	if not TimeService.GrantTime(player, product.seconds) then
@@ -214,6 +232,12 @@ local SIGN_STYLE = {
 		subtitleKey = "shop_sign_auto",
 		hum = "shop_hum_auto",
 	},
+	[Config.SHOP_KIND_PACK] = {
+		color = Color3.fromRGB(190, 110, 255), -- violet : la couleur des raretes
+		titleKey = "shop_pack_title",
+		subtitleKey = "shop_sign_pack",
+		hum = "shop_hum_pack",
+	},
 }
 
 local function createSign(zone)
@@ -263,17 +287,30 @@ end
 local function sendPrompt(player, zone)
 	local kind = getKind(zone)
 
-	if kind ~= Config.SHOP_KIND_AUTOCLICK then
-		Remotes.ShopPrompt:FireClient(player, zone, Config.SHOP_KIND_TIME)
+	if kind == Config.SHOP_KIND_AUTOCLICK then
+		local data = PlayerData.Get(player)
+		if not data then
+			return
+		end
+
+		Remotes.ShopPrompt:FireClient(player, zone, Config.SHOP_KIND_AUTOCLICK, AutoClicker.State(data))
 		return
 	end
 
-	local data = PlayerData.Get(player)
-	if not data then
+	if kind == Config.SHOP_KIND_PACK then
+		local data = PlayerData.Get(player)
+		if not data then
+			return
+		end
+
+		-- Le catalogue des packs vit dans Config, que le client a deja : on ne
+		-- lui envoie que ce qu'il ne peut pas savoir, c'est-a-dire combien de
+		-- packs l'attendent deja.
+		Remotes.ShopPrompt:FireClient(player, zone, Config.SHOP_KIND_PACK, Packs.State(data))
 		return
 	end
 
-	Remotes.ShopPrompt:FireClient(player, zone, Config.SHOP_KIND_AUTOCLICK, AutoClicker.State(data))
+	Remotes.ShopPrompt:FireClient(player, zone, Config.SHOP_KIND_TIME)
 end
 
 local function setupZone(zone)

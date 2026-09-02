@@ -17,6 +17,12 @@ local TimeBalance = require(script.Parent.TimeBalance)
 
 local HallOfFameBoard = {}
 
+-- La couronne est un glyphe, pas un emoji : les emojis passent par le repli
+-- systeme de Roblox et sortent en couleur, ce qui jurerait avec le degrade du
+-- pseudo. Celui-ci se colore avec le texte.
+local CROWN_GLYPH = "\u{265B}"
+local CROWN_COLOR = Color3.fromRGB(255, 210, 70)
+
 local function buildEntries()
 	local onlineUserIds = {}
 	local entries = {}
@@ -26,11 +32,20 @@ local function buildEntries()
 		local data = PlayerData.Get(player)
 		if data then
 			onlineUserIds[player.UserId] = true
-			table.insert(entries, { name = player.Name, timeLeft = data.TimeLeft, tier = data.Tier })
+			table.insert(entries, {
+				name = player.Name,
+				timeLeft = data.TimeLeft,
+				tier = data.Tier,
+				crown = data.Crown == true,
+			})
 		end
 	end
 
-	-- joueurs deconnectes : derniere valeur sauvegardee (en pause)
+	-- Joueurs deconnectes : derniere valeur sauvegardee (en pause). Leur couronne
+	-- reste inconnue -- le classement n'encode que le temps et le palier (voir
+	-- TimeBalance), et aller la chercher couterait une lecture DataStore par
+	-- ligne toutes les 3 secondes pour un liseré dore. Elle apparait donc quand
+	-- son porteur est en ligne, ce qui est le seul moment ou il peut s'en vanter.
 	for _, entry in TimeBalance.GetTop(Config.LEADERBOARD_SIZE) do
 		if entry.userId and not onlineUserIds[entry.userId] then
 			table.insert(entries, { name = entry.name, timeLeft = entry.timeLeft, tier = entry.tier })
@@ -122,8 +137,18 @@ local function fillRow(row, entry)
 
 	row.badge.Visible = true
 	Badge.Apply(row.badge, tier)
-	row.name.Text = entry.name
-	TextFx.Mark(row.name, intensity, tier.color)
+
+	-- La couronne (carte Legendaire du lot 3, dernier cadeau du lot 7) est
+	-- PUREMENT cosmetique : elle ne change ni le classement ni le tri, elle se
+	-- voit. C'est tout ce qu'on lui demande -- et c'est pour ca qu'elle est
+	-- interessante a gagner.
+	if entry.crown then
+		row.name.Text = CROWN_GLYPH .. " " .. entry.name
+		TextFx.Mark(row.name, math.max(intensity, 0.75), CROWN_COLOR)
+	else
+		row.name.Text = entry.name
+		TextFx.Mark(row.name, intensity, tier.color)
+	end
 	Locale.Mark(row.timeLabel, "board_time", { amount = entry.timeLeft })
 	TextFx.Mark(row.timeLabel, intensity * 0.6, tier.color)
 end

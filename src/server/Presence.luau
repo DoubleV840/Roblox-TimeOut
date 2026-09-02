@@ -1,4 +1,5 @@
--- Ce que les AUTRES joueurs lisent d'un joueur : son palier et son chrono.
+-- Ce que les AUTRES joueurs lisent d'un joueur : son palier, son chrono, et sa
+-- couronne s'il en a une.
 --
 -- Pourquoi des ATTRIBUTS et pas un Remote : un attribut pose sur une instance
 -- Player se replique tout seul a TOUS les clients, y compris a ceux qui
@@ -44,6 +45,11 @@ function Presence.Publish(player)
 
 	publishAttribute(player, Config.PRESENCE_TIER_ATTRIBUTE, Tiers.Clamp(data.Tier))
 	publishAttribute(player, Config.PRESENCE_TIME_ATTRIBUTE, math.max(0, math.floor(data.TimeLeft)))
+
+	-- La couronne ne change qu'une fois dans une partie, mais elle passe par le
+	-- meme chemin que le reste : c'est ce qui la rend visible au-dessus de la
+	-- tete ET au classement sans qu'aucun des deux n'ait a lire la sauvegarde.
+	publishAttribute(player, Config.PRESENCE_CROWN_ATTRIBUTE, data.Crown == true)
 end
 
 function Presence.Start()

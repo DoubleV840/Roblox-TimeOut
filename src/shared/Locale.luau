@@ -62,10 +62,18 @@ local function unitsFor(strings)
 	}
 end
 
--- Un marqueur s'ecrit "{nom}" (valeur telle quelle) ou "{nom:duration}" (le
--- parametre porte alors un NOMBRE DE SECONDES, mis en forme ici). C'est ce qui
--- permet au serveur de n'envoyer qu'un nombre : la langue est choisie a
--- l'affichage, par le client qui regarde.
+-- Un marqueur s'ecrit :
+--   {nom}           la valeur telle quelle
+--   {nom:duration}  le parametre porte un NOMBRE DE SECONDES, mis en forme ici
+--   {nom:text}      le parametre porte une AUTRE CLE de traduction, resolue ici
+--
+-- C'est ce qui permet au serveur de n'envoyer que des nombres et des cles : la
+-- langue est choisie a l'affichage, par le client qui regarde.
+--
+-- ":text" evite d'ecrire une phrase par carte, par power-up et par mini-jeu. Une
+-- seule notification "Carte prise : {card:text}" sert les 21 cartes, chacune
+-- apportant son propre nom deja traduit -- sinon il faudrait 21 phrases en 11
+-- langues pour dire la meme chose 21 fois.
 local function substitute(strings, text, params)
 	if not params then
 		return text
@@ -81,6 +89,14 @@ local function substitute(strings, text, params)
 
 		if format == "duration" then
 			return TimeFormat.Duration(tonumber(value) or 0, unitsFor(strings))
+		end
+
+		if format == "text" then
+			-- Resolution a un seul niveau, volontairement : une cle qui en citerait
+			-- une autre qui en citerait une troisieme serait impossible a relire, et
+			-- deux cles qui se citeraient l'une l'autre boucleraient sans fin.
+			local key = tostring(value)
+			return strings[key] or SOURCE[key] or key
 		end
 
 		return tostring(value)
@@ -195,9 +211,9 @@ end
 -- du Creator Hub, pour que Roblox puisse completer les langues non couvertes ici.
 --------------------------------------------------------------------------------
 
--- ":duration" est une convention interne a ce module. Roblox ne connait pas ce
--- specificateur et REFUSE l'entree ("Unknown format specifier"), donc on ne
--- publie vers le portail que "{nom}" : c'est tout ce dont un traducteur a
+-- ":duration" et ":text" sont des conventions internes a ce module. Roblox ne
+-- connait pas ces specificateurs et REFUSE l'entree ("Unknown format
+-- specifier"), donc on ne publie vers le portail que "{nom}" : c'est tout ce dont un traducteur a
 -- besoin, la mise en forme restant faite ici au moment de l'affichage.
 local function forPortal(text)
 	return (string.gsub(text, "{(%w+):%a+}", "{%1}"))

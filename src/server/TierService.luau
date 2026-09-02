@@ -41,6 +41,16 @@ local Presence = require(script.Parent.Presence)
 
 local TierService = {}
 
+-- Ce qui doit se produire QUAND un palier est franchi, sans que ce module ait a
+-- connaitre les systemes concernes. Aujourd'hui : le pack offert a l'arrivee
+-- (lot 3). Le crochet plutot qu'un require direct, parce que Packs a besoin de
+-- TierService et que les deux se demanderaient l'un l'autre au chargement.
+local tierUpHooks = {}
+
+function TierService.OnTierUp(callback)
+	table.insert(tierUpHooks, callback)
+end
+
 -- Distance de securite autour d'une barriere : on n'achete pas un etage depuis
 -- l'autre bout de la map. Genereuse a dessein -- le but est d'ecarter un client
 -- bricole, pas de pinailler sur trois studs.
@@ -256,11 +266,24 @@ end
 -- Achat
 --------------------------------------------------------------------------------
 
--- Ce qu'il faut POSSEDER pour entrer : le prix, plus de quoi ne pas ressortir
--- mourant de l'autre cote.
-function TierService.Required(tier)
-	local cost = Tiers.Cost(tier)
-	return cost + math.max(Config.TIER_SAFETY_MARGIN, cost * Config.TIER_SAFETY_FRACTION)
+-- Le prix et le seuil d'entree vivent dans Tiers, en partage avec le client :
+-- le panneau de la barriere et la barre du HUD doivent afficher exactement le
+-- chiffre que ce module exigera. Ici, on ne fait qu'y brancher la remise du
+-- joueur.
+--
+-- La carte "Billet coupe-file" (lot 3) s'applique a la PROCHAINE entree
+-- seulement, et se consomme au paiement -- pas a l'ouverture du pack, sinon elle
+-- expirerait dans la poche d'un joueur pas encore assez riche pour monter.
+function TierService.Discount(data)
+	return (data and data.TierDiscount) or 0
+end
+
+function TierService.Price(tier, data)
+	return Tiers.Price(tier, TierService.Discount(data))
+end
+
+function TierService.Required(tier, data)
+	return Tiers.Required(tier, TierService.Discount(data))
 end
 
 function TierService.Get(player)
@@ -270,8 +293,17 @@ end
 
 -- Le multiplicateur des gains ACTIFS. Tout ce qui rapporte du temps a la suite
 -- d'un geste du joueur passe par ici ; rien d'autre n'y touche.
+--
+-- La carte "Eclat de palier" (lot 3) ajoute des CRANS a cette echelle, pas un
+-- pourcentage : un joueur palier 5 qui en a deux touche le multiplicateur du
+-- palier 7. Elle vaut donc de plus en plus cher a mesure qu'on monte, ce qui est
+-- exactement ce qu'on attend d'une carte Epique -- et elle sature au Terminus,
+-- faute d'echelon au-dessus.
 function TierService.Multiplier(player)
-	return Tiers.Multiplier(TierService.Get(player))
+	local data = PlayerData.Get(player)
+	local bonus = (data and data.TierBonus) or 0
+
+	return Tiers.Multiplier(TierService.Get(player) + bonus)
 end
 
 local function withinReach(player, gate)
@@ -315,30 +347,37 @@ local function tryBuy(player, gate)
 		return
 	end
 
-	local required = TierService.Required(target)
+	local required = TierService.Required(target, data)
 	if data.TimeLeft < required then
 		Remotes.Notify:FireClient(player, "notify_tier_poor", { amount = required }, Colors.LOSE)
 		return
 	end
 
 	local tier = Tiers.Get(target)
+	local price = TierService.Price(target, data)
+	local discounted = (data.TierDiscount or 0) > 0
 
-	data.TimeLeft -= tier.cost
+	data.TimeLeft -= price
 	data.Tier = target
+
+	-- Le billet coupe-file ne vaut que pour cette entree-la : il se consomme ici,
+	-- au moment ou il a servi.
+	data.TierDiscount = 0
 
 	applyCharacterGroup(player)
 
 	Remotes.TimeUpdated:FireClient(player, data.TimeLeft)
-	Remotes.TierUpdated:FireClient(player, target)
+	Remotes.TierUpdated:FireClient(player, target, data.TierDiscount)
 	Leaderstats.Refresh(player)
 
 	-- Les autres joueurs doivent voir le nouveau badge AU MOMENT de l'annonce, pas
 	-- au prochain tour de la boucle de Presence.
 	Presence.Publish(player)
 
-	Remotes.Notify:FireClient(player, "notify_tier_bought", {
+	Remotes.Notify:FireClient(player, discounted and "notify_tier_bought_discount" or "notify_tier_bought", {
 		tier = target,
 		multiplier = tier.multiplier,
+		amount = price,
 	}, Colors.WIN)
 
 	-- Tout le serveur le voit : une montee est un evenement social, c'est ce qui
@@ -347,6 +386,19 @@ local function tryBuy(player, gate)
 
 	-- Le portique s'ouvre pour tout le monde a portee : la note monte avec l'etage.
 	Sounds.PlayAt("tier_gate_open", gate, { pitch = 0.8 + target * 0.06 })
+
+	-- Ce qui s'accroche a une montee -- aujourd'hui le pack offert a l'arrivee
+	-- (lot 3), dont la valeur amortit le choc de la depense : on entre dans une
+	-- salle neuve avec de quoi respirer, pas avec un chrono a sec.
+	--
+	-- Les crochets tournent APRES la mise a jour du palier : un pack se tire au
+	-- palier ou l'on ARRIVE, c'est lui qui donne leur valeur aux cartes.
+	for _, hook in tierUpHooks do
+		local ok, err = pcall(hook, player, target, tier)
+		if not ok then
+			warn("TimeOut: crochet de montee en echec -> " .. tostring(err))
+		end
+	end
 
 	-- Sauvegarde immediate : un palier paye puis perdu dans un crash serveur
 	-- serait la pire chose que ce systeme puisse faire a un joueur.
@@ -401,7 +453,7 @@ function TierService.Start()
 	-- pousser sur PlayerAdded : a cet instant son LocalScript n'a pas encore
 	-- branche ses Remotes et le message se perdrait.
 	Remotes.TierUpdated.OnServerEvent:Connect(function(player)
-		Remotes.TierUpdated:FireClient(player, TierService.Get(player))
+		Remotes.TierUpdated:FireClient(player, TierService.Get(player), TierService.Discount(PlayerData.Get(player)))
 	end)
 end
 

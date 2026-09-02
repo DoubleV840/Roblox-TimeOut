@@ -4,11 +4,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Colors = require(ReplicatedStorage.Shared.Colors)
+local Tiers = require(ReplicatedStorage.Shared.Tiers)
 local PlayerData = require(script.Parent.PlayerData)
 local Leaderstats = require(script.Parent.Leaderstats)
 local Leaderboard = require(script.Parent.Leaderboard)
 local TimeBalance = require(script.Parent.TimeBalance)
-local BettingGame = require(script.Parent.BettingGame)
+local MiniGames = require(script.Parent.MiniGames)
+local Boons = require(script.Parent.Boons)
 
 local TimeService = {}
 
@@ -29,7 +31,7 @@ local function onPlayerAdded(player)
 	lifeStart[player] = os.clock()
 	Leaderstats.Setup(player)
 	Remotes.TimeUpdated:FireClient(player, data.TimeLeft)
-	Remotes.ClickPowerUpdated:FireClient(player, data.ClickPower)
+	Remotes.ClickPowerUpdated:FireClient(player, data.ClickPower, data.ClickBase)
 end
 
 local function onPlayerRemoving(player)
@@ -83,6 +85,39 @@ function TimeService.GrantTime(player, seconds)
 	return true
 end
 
+--------------------------------------------------------------------------------
+-- Second souffle
+--------------------------------------------------------------------------------
+
+-- La carte Epique "Second souffle" (lot 3) : la prochaine mort ne renvoie pas au
+-- Quai et rend une part du prix d'entree du palier.
+--
+-- Elle ne fait pas que rendre du temps -- elle empeche la mort d'avoir lieu. Le
+-- joueur n'est jamais declare mort, donc il ne reapparait pas en bas et son
+-- personnage ne bouge pas : c'est exactement ce que la carte promet, et c'est
+-- pour ca qu'elle est traitee ici plutot que dans l'ecran de mort.
+--
+-- Le plancher a Config.BASE_TIME est delibere : au palier 2, la moitie du prix
+-- d'entree vaut 2 min 30, soit MOINS qu'un redemarrage normal. Une carte Epique
+-- qui laisse le joueur plus pauvre que la mort ordinaire serait un piege.
+local SECOND_WIND_SHARE = 0.5
+
+local function useSecondWind(player, data)
+	if not data.SecondWind then
+		return false
+	end
+
+	data.SecondWind = false
+	data.TimeLeft = math.max(Config.BASE_TIME, math.floor(Tiers.Cost(data.Tier) * SECOND_WIND_SHARE))
+
+	PlayerData.NoteTime(data)
+	Remotes.TimeUpdated:FireClient(player, data.TimeLeft)
+	Remotes.Notify:FireClient(player, "notify_second_wind", { amount = data.TimeLeft }, Colors.WIN)
+	PlayerData.Save(player)
+
+	return true
+end
+
 function TimeService.Start()
 	Players.PlayerAdded:Connect(onPlayerAdded)
 	Players.PlayerRemoving:Connect(onPlayerRemoving)
@@ -126,20 +161,37 @@ function TimeService.Start()
 				if not waitingForRestart[player] then
 					local data = PlayerData.Get(player)
 					if data then
-						data.TimeLeft -= elapsed
+						-- Le drain vaut 1 s/s a TOUS les paliers : c'est une
+						-- decision de fond du plan 2, un drain qui accelererait
+						-- punirait le joueur d'avoir progresse. La seule chose
+						-- qui le double est le "Pacte du Terminus", une carte
+						-- que le joueur a CHOISIE en echange de beaucoup de
+						-- temps -- et pour dix minutes seulement.
+						local drain = elapsed
+
+						if Boons.Active(player, Config.BOON_PACT) then
+							drain *= Config.BOON_PACT_DRAIN
+						end
+
+						data.TimeLeft -= drain
 
 						if data.TimeLeft <= 0 then
 							data.TimeLeft = 0
 
-							-- Un pari engage sursoit a la mort : le joueur reste a 0
-							-- jusqu'au tirage, qui peut encore le renflouer.
-							if BettingGame.HasPendingBet(player) then
+							-- Une mise engagee sursoit a la mort : le joueur reste a 0
+							-- jusqu'au resultat, qui peut encore le renflouer.
+							if MiniGames.HasPendingStake(player) then
 								if not inBetGrace[player] then
 									inBetGrace[player] = true
 									Remotes.Notify:FireClient(player, "notify_bet_grace", nil, Colors.INFO)
 								end
 
 								Remotes.TimeUpdated:FireClient(player, 0)
+							elseif useSecondWind(player, data) then
+								-- Rien d'autre a faire : le joueur n'est pas mort,
+								-- il n'a donc ni record a enregistrer ni ecran a
+								-- voir. Il continue sa vie la ou il etait.
+								inBetGrace[player] = nil
 							else
 								local survived = os.clock() - lifeStart[player]
 								if survived > data.BestSurvival then

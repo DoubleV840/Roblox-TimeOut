@@ -1,0 +1,8 @@
+# Linter Luau. La std "roblox" est generee dans roblox.yml (voir README / `selene generate-roblox-std`).
+std = "roblox"
+
+[lints]
+# Les scripts Roblox declarent souvent des globales de service ; on garde le lint mais sans bruit.
+mixed_table = "warn"
+shadowing = "warn"
+unused_variable = "warn"

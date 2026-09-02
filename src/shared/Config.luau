@@ -209,12 +209,139 @@ Config.FLICKER_TAG = "FlickerLight"
 -- pas alimenter le panneau au-dessus des tetes.
 Config.PRESENCE_TIER_ATTRIBUTE = "Tier"
 Config.PRESENCE_TIME_ATTRIBUTE = "TimeLeft"
+-- La couronne (carte Legendaire du lot 3, et dernier cadeau du lot 7) : elle est
+-- COSMETIQUE, donc elle n'a de sens que vue par les autres -- d'ou un attribut
+-- publie, comme le palier, plutot qu'une donnee gardee pour soi.
+Config.PRESENCE_CROWN_ATTRIBUTE = "Crown"
 Config.PRESENCE_SYNC_INTERVAL = 1 -- secondes entre deux publications (en secondes entieres)
 
 -- Panneau au-dessus des personnages : pleinement lisible en deca de FADE_START,
 -- efface a FADE_END. Un hall plein ne doit pas devenir un mur de texte.
 Config.NAMEPLATE_FADE_START = 55 -- studs
 Config.NAMEPLATE_FADE_END = 110 -- studs
+
+--------------------------------------------------------------------------------
+-- Lot 3 -- les packs
+--------------------------------------------------------------------------------
+-- Un pack s'ouvre et propose TROIS cartes ; le joueur en garde UNE. C'est la
+-- recompense de fin de palier, et aussi un produit de boutique.
+--
+-- L'interet n'est pas la recompense, c'est le CHOIX : un cadeau qui tombe se
+-- subit, trois cartes obligent a se demander ou on en est. Deux joueurs au meme
+-- palier ne jouent alors plus la meme partie.
+--
+-- Le pool lui-meme (21 cartes, 4 raretes, 3 familles) vit dans
+-- src/shared/Cards.luau -- ici, uniquement ce qui se pose dans Studio et les
+-- garde-fous.
+
+-- Troisieme sorte de guichet, a cote de "Time" et "AutoClick".
+Config.SHOP_KIND_PACK = "Pack"
+
+-- Packs vendus contre des Robux. Meme regle que les paquets de temps : tant que
+-- productId vaut 0, le pack est ignore -- le guichet ne l'affiche pas et le
+-- serveur refuse de le vendre.
+--
+-- A CREER dans le Creator Dashboard -> Monetization -> Developer Products, puis
+-- reporter les identifiants ici (etape 16 du plan 2).
+Config.PACK_PRODUCTS = {
+	{ productId = 0, rarity = "Rare", robux = 149 },
+	{ productId = 0, rarity = "Legendary", robux = 799 },
+}
+
+-- Le tirage est decide UNE FOIS POUR TOUTES, a la creation du pack, et vit dans
+-- la sauvegarde : se deconnecter en plein choix et revenir retrouve exactement
+-- les memes trois cartes. Un tirage refait a chaque ouverture serait une machine
+-- a relancer jusqu'a tomber sur la bonne carte.
+--
+-- Poids de tirage par rarete. Une carte rare reste rare a l'interieur meme d'un
+-- pack qui l'autorise, sinon la rarete du pack serait la seule chose qui compte.
+Config.PACK_WEIGHTS = {
+	Common = 100,
+	Rare = 42,
+	Epic = 16,
+	Legendary = 5,
+}
+
+--------------------------------------------------------------------------------
+-- Lot 5 -- les power-ups du cookie
+--------------------------------------------------------------------------------
+-- Cinq power-ups debloques par palier : chaque etage ajoute une maniere de
+-- cliquer. Tous s'achetent en TEMPS, jamais en Robux -- les Robux restent au
+-- guichet, et le cookie reste un jeu de patience.
+--
+-- L'echelle (palier requis, cout, effet de chaque niveau) vit dans
+-- src/shared/PowerUps.luau.
+
+Config.POWERUP_TAG = "PowerUpZone" -- tag a mettre sur la Part plate au sol
+Config.POWERUP_ATTRIBUTE = "PowerUp" -- attribut texte : la cle du power-up vendu la
+
+--------------------------------------------------------------------------------
+-- Lot 6 -- un mini-jeu par palier
+--------------------------------------------------------------------------------
+-- Le pari existant est le mini-jeu du Quai ; sept autres suivent, un par etage.
+-- Tous passent par le MEME cadre (src/server/MiniGames.luau) : entrer dans la
+-- zone, confirmer sa mise, voir le decompte, voir qui participe, etre rembourse
+-- si personne ne vient, voir le resultat, et trouver la zone verrouillee si le
+-- palier manque. Les sept regles ne sont alors qu'une facon de designer le
+-- gagnant chacune (src/server/MiniGameRules.luau).
+--
+-- Config.BET_TAG reste lu par ce cadre : les zones de pari deja posees dans
+-- Studio continuent de fonctionner sans etre retouchees.
+
+Config.MINIGAME_TAG = "MiniGameZone"
+Config.MINIGAME_GAME_ATTRIBUTE = "Game" -- attribut texte : la cle du jeu
+Config.MINIGAME_BET_ATTRIBUTE = "BetAmount" -- attribut nombre : la mise, en secondes
+Config.MINIGAME_TIER_ATTRIBUTE = "MinTier" -- attribut nombre : le palier requis
+
+-- Le decor propre a certains jeux (dalles des chaises musicales, roue, wagon,
+-- coffre du braquage) se pose a cote de la zone et se designe par cet attribut,
+-- qui porte le NOM de l'instance a prendre. A defaut, le jeu cherche un enfant
+-- ou un frere du meme nom que le jeu, puis se rabat sur la zone elle-meme.
+Config.MINIGAME_DECOR_ATTRIBUTE = "Decor"
+
+-- Un joueur qui quitte la zone pendant la phase active est elimine : sans ca on
+-- gagnerait aux chaises musicales en restant a la buvette.
+Config.MINIGAME_ARENA_GRACE = 1.5 -- secondes de tolerance avant elimination
+
+-- Le Train de minuit (palier 8) est un evenement de SERVEUR, pas une zone qu'on
+-- declenche : il part tout seul, s'annonce longtemps a l'avance, et sa cagnotte
+-- est alimentee par une petite dime prelevee sur tous les autres mini-jeux --
+-- c'est ca, "une cagnotte alimentee par tous les paliers".
+Config.TRAIN_INTERVAL = 3600 -- secondes entre deux departs
+Config.TRAIN_WARNING = 300 -- annonce publique, tant de secondes avant le depart
+Config.TRAIN_BOARDING = 60 -- duree d'embarquement une fois le train a quai
+Config.TRAIN_CUT = 0.05 -- part de chaque cagnotte de mini-jeu versee au train
+Config.TRAIN_BASE_POT = 6 * 3600 -- fond de cagnotte, pour qu'un serveur calme paie quand meme
+
+--------------------------------------------------------------------------------
+-- Lot 7 -- les cadeaux de survie
+--------------------------------------------------------------------------------
+-- Des cadeaux attribues sur le PLUS HAUT TEMPS JAMAIS TENU (data.MaxTime), et
+-- jamais sur le temps courant : sinon le joueur monterait et redescendrait en
+-- boucle pour reencaisser.
+--
+-- L'echelle vit dans src/shared/Rewards.luau. Un cadeau reste reclamable
+-- indefiniment, et rien ne se reclame deux fois.
+
+Config.REWARD_REFRESH_INTERVAL = 3 -- secondes entre deux verifications de seuil
+
+--------------------------------------------------------------------------------
+-- Effets temporaires (cartes de pack, power-ups)
+--------------------------------------------------------------------------------
+-- Les bonus a duree de vie (pluie d'orbes, pieds legers, pacte, frenesie) vivent
+-- en memoire et NON dans la sauvegarde : ils se comptent en minutes, et les
+-- porter d'une session a l'autre demanderait de dater chaque effet pour un gain
+-- nul. Voir src/server/Boons.luau.
+
+Config.BOON_ORB_RAIN = "OrbRain" -- orbes x3 et retour instantane
+Config.BOON_LIGHT_FEET = "LightFeet" -- vitesse +50 %, portee de clic x2
+Config.BOON_PACT = "Pact" -- chrono deux fois plus rapide, en echange de gros
+Config.BOON_FRENZY = "Frenzy" -- power-up Frenesie : x5 sur tous les clics
+
+Config.BOON_ORB_RAIN_MULTIPLIER = 3
+Config.BOON_LIGHT_FEET_SPEED = 1.5
+Config.BOON_LIGHT_FEET_REACH = 2
+Config.BOON_PACT_DRAIN = 2
 
 --------------------------------------------------------------------------------
 -- Son

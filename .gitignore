@@ -7,3 +7,6 @@
 
 # Secrets / codes de recuperation (ne jamais committer)
 /backupcode.txt
+
+# Sourcemap genere par Rojo pour luau-lsp
+/sourcemap.json

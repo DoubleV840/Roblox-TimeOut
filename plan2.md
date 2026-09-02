@@ -152,6 +152,8 @@ Le but du lot : que le jeu ait des étages et qu'on puisse y monter. Rien de jol
 
 Le lot 1 rend la montée possible ; celui-ci la rend désirable. C'est ici que se joue la rétention : le joueur doit voir ce qu'il n'a pas.
 
+> **Code livré pour les étapes 10 à 12, en attente de test en jeu.** Les étapes 7 à 9 sont du décor : elles se bâtissent à la main dans Studio et ne dépendent d'aucun code. Rien du lot ne se voit tant que les vitres ne sont pas posées — la marche à suivre est dans `studio.md`.
+
 - [ ] **Étape 7 — Le Quai crasseux.** Béton fissuré, carrelage manquant, flaques, sacs poubelle, affiches décollées, graffitis, une fuite au plafond, et des néons verdâtres qui **grésillent**.
 
   Le palier 1 doit être franchement laid. C'est le seul étage que tout le monde voit ; s'il est joli, plus rien au-dessus ne fait envie.
@@ -188,28 +190,35 @@ Le lot 1 rend la montée possible ; celui-ci la rend désirable. C'est ici que s
 
   *Fini quand :* depuis le Quai, on voit bouger de vrais joueurs à l'étage au-dessus.
 
-- [ ] **Étape 10 — Les panneaux d'appel.** Devant chaque vitre, un panneau lumineux annonce ce qu'il y a de l'autre côté : le nom de l'étage, son prix d'entrée, et ce qu'il débloque. Dans la couleur de l'étage visé, avec le texte animé des panneaux existants.
+- [x] **Étape 10 — Les panneaux d'appel.** Devant chaque vitre, un panneau lumineux annonce ce qu'il y a de l'autre côté : le nom de l'étage, son prix d'entrée, et ce qu'il débloque. Dans la couleur de l'étage visé, avec le texte animé des panneaux existants.
 
   Pour un joueur qui a déjà l'étage, le panneau se tait : il est chez lui.
 
   **Dans Studio**
   - Poser le tag **`TierWindow`** sur chaque Part de vitre.
   - Lui ajouter un attribut **nombre** `TargetTier` avec l'étage qu'on voit à travers.
+  - Y glisser une **SurfaceGui vide**, `Face` réglée sur le côté d'où arrivent les joueurs — exactement comme sur les barrières. Sans elle le panneau se pose sur la face avant de la Part, probablement du mauvais côté.
   - Rien d'autre : le panneau et son halo sont construits par le jeu à partir du tag.
 
   *Fini quand :* un nouveau joueur sait, sans qu'on lui explique, ce que coûte l'étage du dessus et ce qu'il y gagnerait.
 
-- [ ] **Étape 11 — Le panneau au-dessus des joueurs.** Sur chaque personnage : le pseudo, le badge de son palier, et son chrono en direct, du même dégradé vert→rouge que le HUD — on doit repérer d'un coup d'œil qui est en train de mourir.
+  **Livré** — `src/client/TierWindows.luau`. Le panneau est construit **côté client**, comme celui des barrières et pour la même raison : deux joueurs devant la même vitre n'y lisent pas la même chose, et celui qui a déjà l'étage ne lit rien du tout. La SurfaceGui posée dans Studio ne sert qu'à dire quelle **face** de la vitre regarde les joueurs — c'est `src/client/WorldPanel.luau`, désormais partagé avec les barrières, qui l'exploite. On ne peut rien acheter ici : une vitre n'est pas un passage, le panneau donne envie et la barrière encaisse.
+
+- [x] **Étape 11 — Le panneau au-dessus des joueurs.** Sur chaque personnage : le pseudo, le badge de son palier, et son chrono en direct, du même dégradé vert→rouge que le HUD — on doit repérer d'un coup d'œil qui est en train de mourir.
 
   Le joueur ne voit pas son propre panneau : il a déjà le HUD, et un panneau collé à sa nuque gênerait la caméra. Les panneaux s'effacent à distance pour qu'un hall plein n'encombre pas l'écran.
 
   *Fini quand :* à deux clients, chacun voit le palier et le chrono de l'autre défiler, et pas le sien.
 
-- [ ] **Étape 12 — L'annonce d'une montée.** Quand un joueur franchit un étage, tout le serveur le voit : un message, un son, et son nom mis en avant un instant. Les montées vers les hauts paliers sont plus spectaculaires que les premières.
+  **Livré** — `src/client/Nameplates.luau`, alimenté par `src/server/Presence.luau`. Le chrono d'un **autre** joueur ne pouvait pas venir de `Remotes.TimeUpdated`, qui ne parle qu'à son propriétaire : il passe par deux **attributs** posés sur l'instance `Player`, qui se répliquent seuls à tous les clients, y compris à ceux qui arriveront plus tard. Le serveur ne publie que des secondes entières une fois par seconde ; les décimales descendent chez le client, image par image, comme celles du HUD. Le dégradé vert→rouge est celui de `Colors`, et nulle part ailleurs : sans ça on ne pourrait pas comparer sa propre couleur à celle des autres.
+
+- [x] **Étape 12 — L'annonce d'une montée.** Quand un joueur franchit un étage, tout le serveur le voit : un message, un son, et son nom mis en avant un instant. Les montées vers les hauts paliers sont plus spectaculaires que les premières.
 
   C'est ce qui transforme une progression solitaire en événement social — et ce qui donne envie aux autres d'y aller.
 
   *Fini quand :* un joueur qui monte au palier 6 provoque une réaction visible chez les joueurs restés en bas.
+
+  **Livré** — `src/client/TierAnnounce.luau`, sur `Remotes.TierAnnounce`. **L'ampleur suit l'étage**, et c'est tout le point : durée, largeur du bandeau et hauteur du son s'interpolent entre le palier 2 et le Terminus ; à partir du palier 6 s'ajoutent un coup grave et un embrasement de l'écran. Si les huit paliers s'annonçaient pareil, le dernier ne ferait plus rêver. Le serveur envoie l'**instance** `Player` et non un pseudo : c'est elle qui permet d'aller éclairer le bon personnage dans la salle — `Nameplates.Cheer`, qui grossit son panneau et pose un `Highlight` à la couleur de l'étage, pour qu'on sache **qui** a monté. Le joueur concerné ne voit pas son propre bandeau : il a déjà sa notification et son portique qui s'ouvre. La clé `notify_tier_announce` disparaît, le bandeau la remplace.
 
 ## Lot 3 — Les packs
 
@@ -217,7 +226,9 @@ Un pack s'ouvre et propose **trois cartes ; le joueur en garde une**. C'est la r
 
 Le contenu détaillé des cartes est en fin de document, section « Le pool des cartes ».
 
-- [ ] **Étape 13 — Le pack minimal.** Monter d'un palier donne un pack. Une icône apparaît à l'écran ; l'ouvrir présente trois cartes ; le joueur en choisit une et l'effet s'applique. Pour cette étape, seules les six cartes Communes existent, et l'habillage reste sommaire.
+> **Code livré.** Rien à poser dans Studio pour les étapes 13 à 15 ; l'étape 16 demande une Part taguée et **deux Developer Products à créer au Creator Dashboard**, sans quoi le guichet à packs reste muet.
+
+- [x] **Étape 13 — Le pack minimal.** Monter d'un palier donne un pack. Une icône apparaît à l'écran ; l'ouvrir présente trois cartes ; le joueur en choisit une et l'effet s'applique. Pour cette étape, seules les six cartes Communes existent, et l'habillage reste sommaire.
 
   Trois règles de fond, à poser dès maintenant :
   - **Les trois cartes viennent de trois familles différentes** — une Immédiate, une Moteur, une Joker. Un choix entre trois choses semblables n'est pas un choix.
@@ -226,17 +237,37 @@ Le contenu détaillé des cartes est en fin de document, section « Le pool des 
 
   *Fini quand :* monter d'un palier donne un pack, l'ouvrir propose trois cartes différentes, en choisir une l'applique — et se reconnecter en plein choix retrouve les mêmes trois cartes.
 
-- [ ] **Étape 14 — Le pool complet.** Les 21 cartes et les quatre raretés. La rareté du pack décide de celle des cartes qu'il peut proposer : un pack Rare tire au mieux des Rares, un Légendaire garantit au moins une Épique. Les raretés offertes par palier suivent la colonne du tableau.
+  **Livré** — `src/shared/Cards.luau` (le pool et ses conditions), `src/server/Packs.luau` (tirage, effets, sauvegarde), `src/client/Packs.luau` (icône et cérémonie). Les étapes 13 et 14 sont livrées ensemble : « seulement les Communes » était une étape de montage, pas un état à faire vivre.
+
+  Le pack s'accroche à la montée par un **crochet** (`TierService.OnTierUp`) et non par un `require` : `Packs` a besoin de `TierService`, les deux se seraient demandés l'un l'autre au chargement.
+
+  **Le palier est figé à la création du pack**, au même titre que le tirage. Les cartes valent un pourcentage du prix d'entrée : sans ça, garder ses packs fermés jusqu'au Terminus serait toujours le bon calcul, et personne n'en ouvrirait un seul avant la fin de l'échelle.
+
+  Le pack est retiré de la pile **avant** que l'effet ne s'applique : un effet qui *yield* (rendre du temps peut recharger un personnage) laisserait sinon la porte ouverte à un second choix sur le même pack.
+
+  **Le compte des Communes** : le plan en annonçait six, il y en a sept (3 Immédiates, 2 Moteur, 2 Joker). C'est le tableau du pool qui fait foi.
+
+- [x] **Étape 14 — Le pool complet.** Les 21 cartes et les quatre raretés. La rareté du pack décide de celle des cartes qu'il peut proposer : un pack Rare tire au mieux des Rares, un Légendaire garantit au moins une Épique. Les raretés offertes par palier suivent la colonne du tableau.
 
   *Fini quand :* un pack Légendaire au palier 8 propose visiblement mieux qu'un pack Commun au palier 2.
 
-- [ ] **Étape 15 — La cérémonie d'ouverture.** Trois cartes face cachée, retournement décalé, halo à la couleur de la rareté, texte d'autant plus agité que la carte est rare, et le hall qui s'assombrit autour.
+  **Livré** — deux mécanismes, et il fallait les deux. Un **plafond** de rareté par pack, et un **plancher garanti** sur au moins une carte (Épique ≥ une Rare, Légendaire ≥ une Épique). Mais aussi des **poids** (`Config.PACK_WEIGHTS`) : une carte rare reste rare *à l'intérieur même* d'un pack qui l'autorise, sinon la rareté du pack serait la seule chose qui compte et un Légendaire donnerait une Légendaire trois fois sur quatre.
+
+  La garantie ne s'applique qu'**après** le tirage normal, et sur une famille tirée au sort : forcée d'emblée, elle deviendrait un plafond et tous les packs Légendaires se ressembleraient.
+
+- [x] **Étape 15 — La cérémonie d'ouverture.** Trois cartes face cachée, retournement décalé, halo à la couleur de la rareté, texte d'autant plus agité que la carte est rare, et le hall qui s'assombrit autour.
 
   C'est l'écran que les joueurs mettront dans leurs vidéos — il mérite plus de soin que n'importe quelle autre fenêtre du jeu.
 
   *Fini quand :* ouvrir un pack donne envie d'en ouvrir un autre.
 
-- [ ] **Étape 16 — Les packs en boutique.** Un troisième guichet, à côté de celui du temps et de celui de l'auto-cliqueur, vendant des packs contre des Robux. Deux produits : un pack Rare et un pack Légendaire.
+  **Livré** — voile qui assombrit le hall, trois cartes face cachée, retournement **décalé** (une par une, avec un temps d'arrêt), halo à la couleur de la rareté, agitation du texte proportionnelle à la rareté, et la note du retournement qui monte avec elle : on entend ce qu'on a tiré avant de l'avoir lu.
+
+  Le joueur ne peut cliquer qu'**après** le dernier retournement. Laisser choisir pendant l'animation reviendrait à la rendre facultative, et personne ne la verrait deux fois.
+
+  Le serveur n'envoie que trois identifiants de carte, la rareté et le palier : tout le texte et tous les chiffres sortent de `Cards.luau`, que le client a déjà — donc dans sa langue, sans un octet de texte sur le réseau.
+
+- [x] **Étape 16 — Les packs en boutique.** Un troisième guichet, à côté de celui du temps et de celui de l'auto-cliqueur, vendant des packs contre des Robux. Deux produits : un pack Rare et un pack Légendaire.
 
   **Dans Studio**
   - Une Part au sol, comme les guichets existants, avec le tag **`ShopZone`**.
@@ -246,6 +277,10 @@ Le contenu détaillé des cartes est en fin de document, section « Le pool des 
   **Hors Studio** — dans le Creator Dashboard, *Monetization → Developer Products* : créer deux produits (pack Rare, pack Légendaire) et reporter leurs identifiants dans les réglages, comme pour les paquets de temps de l'étape 5 de `plan.md`.
 
   *Fini quand :* on peut acheter un pack, et un rachat immédiat après reconnexion ne le crédite pas deux fois.
+
+  **Livré** — troisième sorte de guichet (`ShopKind` = `Pack`), qui passe par le `ProcessReceipt` existant : l'anti double-crédit par `PurchaseId` couvre les packs sans une ligne de plus.
+
+  **À faire hors du code** : `Config.PACK_PRODUCTS` porte deux `productId` à **`0`**. Tant qu'ils y sont, le guichet n'affiche rien et le serveur refuse de vendre — c'est le comportement voulu, pas une panne. Créer les deux produits au *Creator Dashboard → Monetization → Developer Products* et recopier leurs identifiants.
 
 ## Lot 4 — L'auto-cliqueur revu
 
@@ -324,7 +359,9 @@ Le Chrono Boost reste la progression de fond. Autour de lui, cinq power-ups **d�
 
 Chaque power-up se prend sur une zone au sol, sur le modèle des zones Chrono Boost existantes.
 
-- [ ] **Étape 20 — Critique (palier 3).** La première carte du lot, et celle qui pose le modèle : une zone d'achat, une fenêtre, un niveau qui monte, un prix qui grimpe. Effet : chaque clic a une chance de rapporter ×10, la chance augmentant de 2 % par niveau.
+> **Code livré.** Rien ne se voit tant que les cinq Parts ne sont pas posées et taguées dans les bonnes salles — la marche à suivre est dans `studio.md`.
+
+- [x] **Étape 20 — Critique (palier 3).** La première carte du lot, et celle qui pose le modèle : une zone d'achat, une fenêtre, un niveau qui monte, un prix qui grimpe. Effet : chaque clic a une chance de rapporter ×10, la chance augmentant de 2 % par niveau.
 
   Une fois cette étape faite, les quatre suivantes ne sont que du contenu.
 
@@ -335,7 +372,15 @@ Chaque power-up se prend sur une zone au sol, sur le modèle des zones Chrono Bo
 
   *Fini quand :* on achète Critique au Buffet, et on voit passer des clics dorés à ×10.
 
-- [ ] **Étape 21 — Écho (palier 4) et Poids du temps (palier 6).** Deux passifs. *Écho* : chaque clic se répète 0,4 s plus tard, à moitié de sa valeur. *Poids du temps* : le gain par clic augmente avec le chrono possédé — riche quand on est riche, nul quand on agonise.
+  **Livré** — `src/shared/PowerUps.luau` (l'échelle : palier requis, prix, effet de chaque niveau), `src/server/PowerUpZones.luau` (la vente), `src/client/PowerUpZones.luau` (la fenêtre et le panneau). Les effets, eux, sont appliqués **là où ils se jouent** : `TimeCookie` pour les quatre power-ups de clic, l'auto-cliqueur pour le carburant des Rouages.
+
+  **Les prix se dérivent du palier** (`costShare`) au lieu d'être écrits à la main : un power-up qui s'ouvre au palier 7 s'achète avec l'argent du palier 7, et une retouche du tableau des paliers n'oblige pas à reprendre les cinq échelles de prix.
+
+  Un seul endroit calcule ce que vaut un niveau — la fenêtre d'achat et le serveur lisent la même fonction, donc l'annonce ne peut pas mentir sur l'effet.
+
+  Le clic critique change de couleur, de taille et de son : un ×10 qui ne se voit pas ne récompense rien, et c'est le seul retour possible sur un power-up dont l'effet est par nature intermittent.
+
+- [x] **Étape 21 — Écho (palier 4) et Poids du temps (palier 6).** Deux passifs. *Écho* : chaque clic se répète 0,4 s plus tard, à moitié de sa valeur. *Poids du temps* : le gain par clic augmente avec le chrono possédé — riche quand on est riche, nul quand on agonise.
 
   **Dans Studio**
   - Une zone `PowerUpZone` dans **Le Salon 1re classe**, attribut `PowerUp` = `Echo`.
@@ -343,7 +388,13 @@ Chaque power-up se prend sur une zone au sol, sur le modèle des zones Chrono Bo
 
   *Fini quand :* les deux s'achètent, se cumulent avec Critique, et leurs effets se voient à l'écran.
 
-- [ ] **Étape 22 — Frénésie (palier 5).** Le seul consommable : ×5 sur tous les clics pendant 20 secondes, avec 3 minutes de recharge. Ça donne un geste actif à répéter, et un pic de puissance à déclencher au bon moment.
+  **Livré** — l'écho **ne se ré-écho pas** : un seul clic rebondirait sinon indéfiniment, chaque niveau rapprochant un peu plus la chaîne de l'infini.
+
+  Le *Poids du temps* suit le **logarithme** du chrono, pas le chrono : linéaire, un joueur à 1000 h aurait un clic douze mille fois plus fort qu'un joueur à 5 min — ce n'est plus un power-up, c'est une autre partie. Il retombe exactement à ×1 quand il ne reste plus rien, ce que le plan demandait.
+
+  Tout ce qui entre dans un clic est désormais listé en tête de `src/server/TimeCookie.luau`. C'est le geste le plus répété du jeu : rien ne doit s'y ajouter sans passer par cette liste.
+
+- [x] **Étape 22 — Frénésie (palier 5).** Le seul consommable : ×5 sur tous les clics pendant 20 secondes, avec 3 minutes de recharge. Ça donne un geste actif à répéter, et un pic de puissance à déclencher au bon moment.
 
   Retour visuel fort attendu : le cookie s'embrase. C'est le moment le plus spectaculaire du jeu après l'ouverture d'un pack.
 
@@ -352,7 +403,11 @@ Chaque power-up se prend sur une zone au sol, sur le modèle des zones Chrono Bo
 
   *Fini quand :* déclencher une Frénésie change visiblement le rythme de la partie pendant 20 secondes.
 
-- [ ] **Étape 23 — Rouages (palier 7).** Chaque clic ajoute du carburant à l'auto-cliqueur. Dépend du lot 4 : à faire après l'étape 18.
+  **Livré** — c'est le **seul consommable** du lot, et donc le seul qui change quelque chose à la façon de *jouer* : les quatre autres sont passifs. Il lui faut un bouton permanent en bas de l'écran, pas une ligne dans une fenêtre qu'on ouvre en marchant sur une dalle — un pic de puissance ne sert à rien s'il faut traverser la salle pour l'allumer.
+
+  Les niveaux allongent la fenêtre (+2 s) et raccourcissent la recharge (−10 s, plancher à 1 min). La recharge descend **côté client**, image par image ; le serveur ne le recale qu'au moment où elle revient à zéro.
+
+- [x] **Étape 23 — Rouages (palier 7).** Chaque clic ajoute du carburant à l'auto-cliqueur. Dépend du lot 4 : à faire après l'étape 18.
 
   Le clic manuel finance ainsi la source passive, sans jamais l'offrir : le niveau reste ce qu'on ne peut obtenir qu'en Robux.
 
@@ -360,6 +415,8 @@ Chaque power-up se prend sur une zone au sol, sur le modèle des zones Chrono Bo
   - Une zone `PowerUpZone` dans **Les Coulisses**, attribut `PowerUp` = `Rouages`.
 
   *Fini quand :* cliquer fait monter la jauge de carburant.
+
+  **Livré** — volontairement **maigre par clic** (0,05 s de carburant par niveau) : de quoi soulager un réservoir, pas de quoi rendre l'achat inutile. Et il ne remplit rien du tout tant qu'il n'y a pas de machine à alimenter — le **niveau** de l'auto-cliqueur reste la seule chose du jeu qui ne s'obtienne qu'en Robux, seul son carburant se gagne ici.
 
 ## Lot 6 — Un mini-jeu par palier
 
@@ -369,7 +426,9 @@ Toutes les zones de mini-jeu se posent de la même façon dans Studio :
 
 > Une Part plate au sol, tag **`MiniGameZone`**, plus trois attributs : **texte** `Game` (le nom du jeu), **nombre** `BetAmount` (la mise en secondes), **nombre** `MinTier` (le palier requis). Le décor, l'aura, le panneau et le cadenas sont construits par le jeu.
 
-- [ ] **Étape 24 — Unifier les zones de jeu.** Avant d'en écrire un deuxième : faire en sorte que toutes les zones de mini-jeu se comportent de la même façon — entrer dans la zone, confirmer sa mise, voir le décompte avant le tirage, voir qui participe, être remboursé si personne ne vient, voir le résultat, et trouver la zone verrouillée si le palier manque. Le pari actuel devient le premier client de ce comportement commun.
+> **Code livré pour les huit jeux.** Les zones `BetZone` déjà posées continuent de fonctionner sans être retouchées ; les sept autres jeux demandent une Part taguée par salle, et quatre d'entre eux un décor propre — la marche à suivre est dans `studio.md`.
+
+- [x] **Étape 24 — Unifier les zones de jeu.** Avant d'en écrire un deuxième : faire en sorte que toutes les zones de mini-jeu se comportent de la même façon — entrer dans la zone, confirmer sa mise, voir le décompte avant le tirage, voir qui participe, être remboursé si personne ne vient, voir le résultat, et trouver la zone verrouillée si le palier manque. Le pari actuel devient le premier client de ce comportement commun.
 
   **C'est le vrai travail du lot.** Les sept jeux suivants ne sont alors qu'une règle de désignation du gagnant chacun. Écrire le deuxième mini-jeu sans avoir unifié le premier, c'est s'engager à en maintenir huit.
 
@@ -378,39 +437,79 @@ Toutes les zones de mini-jeu se posent de la même façon dans Studio :
 
   *Fini quand :* le pari fonctionne exactement comme avant, mais son comportement est devenu réutilisable tel quel.
 
-- [ ] **Étape 25 — Le Distributeur détraqué (palier 2).** Machine à sous solo : on mise, on tire, on récupère entre 0 et 10 fois la mise. Le plus simple des sept, sans synchronisation entre joueurs — c'est pour ça qu'il vient en premier, il valide le cadre de l'étape 24.
+  **Livré** — `src/server/MiniGames.luau` porte tout le commun (entrer, miser, décompter, montrer qui participe, rembourser, payer, verrouiller par palier, alimenter le Train), `src/server/MiniGameRules.luau` les huit règles, `src/client/MiniGames.luau` la fenêtre, le cadenas, le HUD et la scène. `src/server/BettingGame.luau` **disparaît** : le pari est devenu une règle de sept lignes parmi huit, ce qui est exactement ce que l'étape demandait.
+
+  Le cadre lit **les deux tags** : une `BetZone` est une `MiniGameZone` dont le jeu est « Pari ». Les zones déjà posées gardent leur `BetAmount` **et** leur déverrouillage au plus haut temps tenu ; les nouvelles se verrouillent par palier, et les deux verrous se cumulent là où ils s'appliquent.
+
+  Une règle ne rend qu'une table **joueur → part de la cagnotte**. Le cadre applique ensuite le multiplicateur de palier, rembourse les perdants assurés, prélève la dîme du Train et sauvegarde. C'est ce contrat-là qui fait tenir les sept jeux suivants en un bloc chacun.
+
+  Trois formes de partie suffisent à les couvrir : **Solo** (on mise, le sort tranche aussitôt), **Tirage** (inscription, décompte, résultat), **Arène** (inscription, puis une phase active où l'on joue vraiment).
+
+  Côté client, la popup de pari, le cadenas et le HUD des tours **quittent `init.client.luau`** : les sept autres jeux les ont eus sans écrire une ligne d'interface.
+
+- [x] **Étape 25 — Le Distributeur détraqué (palier 2).** Machine à sous solo : on mise, on tire, on récupère entre 0 et 10 fois la mise. Le plus simple des sept, sans synchronisation entre joueurs — c'est pour ça qu'il vient en premier, il valide le cadre de l'étape 24.
 
   **Dans Studio** — une zone `MiniGameZone` dans La Salle des pas perdus : `Game` = `Distributeur`, `BetAmount` = `60`, `MinTier` = `2`.
 
   *Fini quand :* on peut miser et perdre, miser et gagner gros, et le HUD des tours reste juste.
 
-- [ ] **Étape 26 — Les Chaises musicales (palier 3).** Des dalles s'éteignent une à une, le dernier joueur debout remporte la cagnotte.
+  **Livré** — l'espérance est volontairement **sous 1** (~0,88) : une machine à sous rentable serait une imprimante à temps, et le joueur y passerait la partie. Elle reste attirante parce que le ×10 existe et se voit — c'est le seul chiffre qu'on retient d'une machine à sous.
+
+- [x] **Étape 26 — Les Chaises musicales (palier 3).** Des dalles s'éteignent une à une, le dernier joueur debout remporte la cagnotte.
 
   **Dans Studio** — une zone `MiniGameZone` dans Le Buffet (`Game` = `Chaises`, `MinTier` = `3`), plus une grille de Parts-dalles au-dessus d'un vide, groupées dans un même dossier à côté de la zone.
 
-- [ ] **Étape 27 — La Roue (palier 4).** Une roue partagée, chacun mise sur un secteur avant le lancer.
+  **Livré** — premier jeu à phase active, donc celui qui valide `Run()`. Une dalle s'éteint par tour ; qui était dessus tombe.
+
+  **Sans dalles, la partie se joue quand même** : on élimine alors le joueur le plus loin du centre de la zone. C'est la règle la moins arbitraire qu'on puisse tenir sans décor — rester au milieu paie — et elle rend le jeu testable aujourd'hui, ce qui est la situation. Les dalles le rendront physique le jour où elles existeront. Toutes leurs propriétés sont relevées avant la partie et rendues après.
+
+- [x] **Étape 27 — La Roue (palier 4).** Une roue partagée, chacun mise sur un secteur avant le lancer.
 
   **Dans Studio** — une zone `MiniGameZone` dans Le Salon (`Game` = `Roue`, `MinTier` = `4`), plus une Part cylindrique servant de roue, à côté de la zone.
 
-- [ ] **Étape 28 — Le Wagon (palier 5).** Une plateforme qui rétrécit ; on gagne en tenant jusqu'au bout.
+  **Livré** — six secteurs, choisis **au moment de s'inscrire** : c'est le seul jeu où l'on décide de quelque chose en misant, et le seul où deux joueurs peuvent gagner ensemble sans être alliés. Il tourne à un seul joueur — une roue n'a besoin de personne.
+
+  La roue du décor tourne pour de vrai si elle existe, mais c'est **purement cosmétique** : le résultat est déjà tiré quand elle démarre.
+
+- [x] **Étape 28 — Le Wagon (palier 5).** Une plateforme qui rétrécit ; on gagne en tenant jusqu'au bout.
 
   **Dans Studio** — une zone `MiniGameZone` dans La Verrière (`Game` = `Wagon`, `MinTier` = `5`), plus une plateforme isolée au-dessus du vide.
 
-- [ ] **Étape 29 — Le Duel (palier 6).** Un contre un, le plus rapide au clic sur 15 secondes.
+  **Livré** — la plateforme rétrécit en huit crans jusqu'au quart de sa taille ; qui n'est plus dessus est éliminé, avec une marge de tolérance pour ne pas punir un pied qui dépasse pendant qu'elle rétrécit sous lui. **Sans plateforme, la zone elle-même fait l'affaire** : le jeu est jouable avant que la map n'existe. Elle revient à sa taille à la fin — la partie suivante doit trouver le wagon comme la première l'a trouvé.
+
+- [x] **Étape 29 — Le Duel (palier 6).** Un contre un, le plus rapide au clic sur 15 secondes.
 
   **Dans Studio** — une zone `MiniGameZone` dans La Tour (`Game` = `Duel`, `MinTier` = `6`), plus deux emplacements face à face.
 
-- [ ] **Étape 30 — Le Braquage (palier 7).** Coopératif : le groupe réussit ensemble ou perd tout.
+  **Livré** — premier jeu où le joueur **agit** pendant la partie. Au-delà de deux inscrits les autres attendent le tour suivant, et la place prise, la partie démarre sans attendre la fin du décompte.
+
+  Les clics partent par **paquets**, dix fois par seconde : un message par clic saturerait le réseau pour un compteur que le serveur sait additionner. Ils sont comptés côté serveur et **plafonnés sur le temps écoulé depuis le début**, pas entre deux paquets : une rafale ponctuelle passe, un flux constamment impossible est coupé. Le plafond est généreux — il écarte la triche grossière, il ne pénalise personne.
+
+  Égalité parfaite : les deux se partagent. Départager au hasard un duel où personne n'a été le meilleur serait une punition gratuite.
+
+- [x] **Étape 30 — Le Braquage (palier 7).** Coopératif : le groupe réussit ensemble ou perd tout.
 
   **Dans Studio** — une zone `MiniGameZone` dans Les Coulisses (`Game` = `Braquage`, `MinTier` = `7`), plus un coffre.
 
-- [ ] **Étape 31 — Le Train de minuit (palier 8).** Une fois par heure, un événement de serveur avec une cagnotte alimentée par tous les paliers. C'est le sommet du jeu — il doit s'annoncer longtemps à l'avance et se voir de tous les étages.
+  **Livré** — le seul jeu du lot où les participants **ne jouent pas les uns contre les autres**, et c'est ce qui en fait le bon jeu du palier 7 : tout le monde y est déjà riche, seule une perte collective fait encore peur.
+
+  L'objectif monte avec le nombre de braqueurs mais **moins vite qu'eux** — venir à plusieurs aide vraiment, sinon personne n'irait chercher les autres. En cas de succès, la cagnotte n'est pas partagée entre eux, elle est multipliée pour chacun.
+
+- [x] **Étape 31 — Le Train de minuit (palier 8).** Une fois par heure, un événement de serveur avec une cagnotte alimentée par tous les paliers. C'est le sommet du jeu — il doit s'annoncer longtemps à l'avance et se voir de tous les étages.
 
   **Dans Studio** — une zone `MiniGameZone` sur le quai du Terminus (`Game` = `TrainDeMinuit`, `MinTier` = `8`), et le train lui-même, visible depuis les vitres des étages inférieurs.
 
 ## Lot 7 — Les cadeaux de survie
 
-- [ ] **Étape 32 — Les paliers de récompense.** Des cadeaux attribués quand le joueur atteint certains totaux de temps — sur le **plus haut temps qu'il ait jamais tenu**, jamais sur son temps courant : sinon il monte et redescend en boucle pour réencaisser.
+> **Code livré.** Rien à poser dans Studio : l'échelle, l'icône et la fenêtre sont entièrement dans le code.
+
+  **Livré** — le seul jeu qui **ne s'ouvre pas quand on entre dedans** : il part tout seul une fois par heure, s'annonce cinq minutes à l'avance à tout le serveur, puis reste à quai une minute pendant laquelle on monte en marchant dedans — ce qu'on fait d'un train.
+
+  **L'embarquement est gratuit.** Sa cagnotte n'est pas faite des mises : elle est faite d'une dîme de 5 % prélevée sur *toutes* les autres cagnottes du serveur. C'est ça, « une cagnotte alimentée par tous les paliers » — un joueur du Terminus n'y paie rien, il encaisse ce que le serveur entier a produit depuis une heure. C'est aussi la seule chose qui limite un peu la création de temps des mini-jeux.
+
+  Le tirage se joue sur un coup de dés, et c'est voulu : en haut de l'échelle le drain d'1 s/s ne fait plus peur à personne, il faut que quelque chose reprenne le rôle.
+
+- [x] **Étape 32 — Les paliers de récompense.** Des cadeaux attribués quand le joueur atteint certains totaux de temps — sur le **plus haut temps qu'il ait jamais tenu**, jamais sur son temps courant : sinon il monte et redescend en boucle pour réencaisser.
 
   | Atteint | Cadeau |
   |---|---|
@@ -434,6 +533,16 @@ Toutes les zones de mini-jeu se posent de la même façon dans Studio :
 
   *Fini quand :* atteindre un seuil fait apparaître l'icône, la réclamer donne le cadeau, et se reconnecter ne permet pas de la réclamer à nouveau.
 
+  **Livré** — `src/shared/Rewards.luau` (l'échelle), `src/server/Rewards.luau` (les seuils et les cadeaux), `src/client/Rewards.luau` (l'icône et la fenêtre).
+
+  La fenêtre montre **toute l'échelle**, pas seulement ce qui est mûr : les seuils déjà pris, ceux qui attendent, et ceux qu'il reste à atteindre. C'est ce qui transforme une liste de récompenses en objectif — un joueur qui voit « 3 j : pack Rare » sait pourquoi il tient encore.
+
+  Le seuil est marqué réclamé **avant** que le cadeau ne parte : un donneur qui *yield* (rendre du temps peut recharger un personnage) laisserait sinon la porte ouverte à deux cadeaux pour un.
+
+  **Un piège de sauvegarde qui vaut d'être noté** : un DataStore resérialise en JSON, et une table à clés entières non contiguës (`{[3] = true}`) revient avec des clés **texte** (`{["3"] = true}`). Un cadeau marqué réclamé sous `3` se serait retrouvé réclamable sous `"3"` à la session suivante — soit exactement ce que ce lot promet de ne jamais faire. Les clés sont donc écrites en texte des deux côtés.
+
+  **Un cadeau qui ne peut pas être livré n'est pas consommé.** Le seul cas est la Frénésie offerte à 12 h : elle ne veut rien dire tant que le power-up n'est pas acheté (palier 5). La réclamation est alors refusée avec son motif, et le cadeau reste en attente — « réclamable indéfiniment » ne souffre pas d'exception.
+
 ---
 
 # Récapitulatif des tags et attributs
@@ -446,6 +555,7 @@ Tout ce qui est à poser à la main dans Studio, en une seule table. Les tags se
 | `TierWindow` | Un mur vitré | `TargetTier` *(nombre)* — l'étage qu'on voit | 10 |
 | `FlickerLight` | Une lumière du bas de l'immeuble | — | 7 |
 | `ShopZone` *(existant)* | Le guichet à packs | `ShopKind` *(texte)* = `Pack` | 16 |
+| *(aucun tag)* | Le **décor** d'un mini-jeu (dalles, roue, plateforme, coffre) | `Decor` *(texte)* sur la zone — le nom de l'instance à prendre ; facultatif | 26–31 |
 | `PowerUpZone` | Une zone d'achat de power-up | `PowerUp` *(texte)* = `Critique`, `Echo`, `Frenesie`, `PoidsDuTemps` ou `Rouages` | 20–23 |
 | `MiniGameZone` | Une zone de mini-jeu | `Game` *(texte)*, `BetAmount` *(nombre)*, `MinTier` *(nombre)* | 24–31 |
 | *(aucun tag)* | La **SpawnLocation** du Quai | `TargetTier` *(nombre)* = `1` — facultatif, sinon la plus basse fait foi | 6 |
@@ -532,6 +642,8 @@ Vue d'ensemble de la construction manuelle, une fois toutes les étapes faites. 
 - **Le gain de pari doit-il vraiment être multiplié ?** Le plan dit oui (« un gain de mini-jeu »), et c'est livré ainsi. Mais la cagnotte ressort alors plus grosse qu'elle n'est entrée : c'est le seul endroit du jeu où du temps se crée. Les corrections possibles, si le test le demande : ne multiplier que la part que le gagnant a lui-même misée, ou plafonner le multiplicateur des mini-jeux.
 - **Le bouton du panneau suffit-il ?** Un bouton plaqué sur une barrière n'affiche pas d'indice d'interaction. Si les joueurs ne comprennent pas qu'on peut cliquer, ajouter une ProximityPrompt sur la même Part.
 - **Tous les chiffres de ce plan** sont calculés, pas mesurés. Ils sont à revoir après le premier test complet du lot 1.
+- **La dîme du Train (5 %) suffit-elle à contenir la création de temps ?** Les mini-jeux font ressortir la cagnotte plus grosse qu'elle n'est entrée (multiplicateur de palier du gagnant), et le Train en reprend une part avant de la redistribuer. C'est un frein, pas une fermeture : à mesurer sur un serveur plein, où huit zones tournent en parallèle.
+- **Les identifiants des deux packs Robux** (`Config.PACK_PRODUCTS`) valent `0`. Le guichet à packs reste muet tant qu'ils ne sont pas créés au Creator Dashboard — c'est voulu, pas une panne.
 
 ---
 

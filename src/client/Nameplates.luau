@@ -38,6 +38,12 @@ local PLATE_OFFSET = Vector3.new(0, 3.2, 0)
 
 local NAME_COLOR = Color3.fromRGB(240, 240, 245)
 
+-- La couronne est un glyphe, pas un emoji : les emojis passent par le repli
+-- systeme de Roblox et sortent en couleur, ce qui jurerait avec le pseudo dore.
+-- Celui-ci se colore avec le texte.
+local CROWN_GLYPH = "\u{265B}"
+local CROWN_COLOR = Color3.fromRGB(255, 210, 70)
+
 -- Le coup de projecteur d'une montee (etape 12) : le panneau grossit, passe
 -- devant le decor et prend la couleur de l'etage paye.
 local CHEER_SCALE = 1.45
@@ -112,6 +118,8 @@ local function build(player)
 		badgeStroke = badge:FindFirstChildOfClass("UIStroke"),
 		badgeSymbol = badge.Symbol,
 		nameLabel = nameLabel,
+		nameColor = NAME_COLOR,
+		crowned = false,
 		timeLabel = timeLabel,
 		connections = {},
 		-- Ce que le serveur a publie en dernier, et qu'on fait descendre ici.
@@ -128,6 +136,23 @@ end
 
 local function readTier(plate)
 	Badge.Apply(plate.badge, Tiers.Get(plate.player:GetAttribute(Config.PRESENCE_TIER_ATTRIBUTE)))
+end
+
+-- La couronne : carte Legendaire du lot 3, et dernier cadeau du lot 7. Purement
+-- cosmetique -- elle ne change rien au jeu, elle se voit. C'est tout ce qu'on lui
+-- demande, et c'est pour ca qu'elle est au-dessus de la tete plutot que dans une
+-- fiche de personnage que personne n'ouvrirait.
+--
+-- Elle vient d'un attribut publie sur l'instance Player, comme le palier et le
+-- chrono : les cosmetiques de ce jeu n'ont de sens que vus par les AUTRES.
+local function readCrown(plate)
+	local crowned = plate.player:GetAttribute(Config.PRESENCE_CROWN_ATTRIBUTE) == true
+
+	plate.crowned = crowned
+	plate.nameLabel.Text = crowned and (CROWN_GLYPH .. " " .. plate.player.DisplayName)
+		or plate.player.DisplayName
+	plate.nameColor = crowned and CROWN_COLOR or NAME_COLOR
+	plate.nameLabel.TextColor3 = plate.nameColor
 end
 
 local function readTime(plate)
@@ -171,10 +196,14 @@ local function watch(player)
 
 	readTier(plate)
 	readTime(plate)
+	readCrown(plate)
 
 	plate.connections = {
 		player:GetAttributeChangedSignal(Config.PRESENCE_TIER_ATTRIBUTE):Connect(function()
 			readTier(plate)
+		end),
+		player:GetAttributeChangedSignal(Config.PRESENCE_CROWN_ATTRIBUTE):Connect(function()
+			readCrown(plate)
 		end),
 		player:GetAttributeChangedSignal(Config.PRESENCE_TIME_ATTRIBUTE):Connect(function()
 			readTime(plate)
@@ -332,7 +361,10 @@ function Nameplates.Cheer(player, tierIndex, seconds)
 		plate.billboard.Size = PLATE_SIZE
 		plate.billboard.StudsOffsetWorldSpace = PLATE_OFFSET
 		plate.billboard.AlwaysOnTop = false
-		plate.nameLabel.TextColor3 = NAME_COLOR
+
+		-- Sa couleur A LUI : un joueur couronne garde son dore quand le
+		-- projecteur s'eteint, il ne redevient pas blanc.
+		plate.nameLabel.TextColor3 = plate.nameColor or NAME_COLOR
 
 		if plate.highlight then
 			plate.highlight:Destroy()

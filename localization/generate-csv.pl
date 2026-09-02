@@ -70,16 +70,17 @@ while ($lua =~ /\["([a-z-]+)"\] = \{(.*?)\n\t\},/gs) {
     my ($locale, $body) = ($1, $2);
     $seen{$locale} = 1;
 
-    while ($body =~ /^\t\t([a-z_0-9]+) = "(.*)",$/gm) {
+    while ($body =~ /^\t\t([A-Za-z_0-9]+) = "(.*)",$/gm) {
         my ($key, $value) = ($1, $2);
 
         # Le source Lua contient la sequence \n en deux caracteres ; le CSV doit
         # porter un vrai saut de ligne, sinon le joueur verrait "\n" a l'ecran.
         $value =~ s/\n/\n/g;
 
-        # ":duration" est une convention interne a Locale.luau. L'import du
-        # portail refuse ce specificateur ("Unknown format specifier"), donc le
-        # CSV ne porte que "{nom}", comme la LocalizationTable construite en jeu.
+        # ":duration" et ":text" sont des conventions internes a Locale.luau.
+        # L'import du portail refuse ces specificateurs ("Unknown format
+        # specifier"), donc le CSV ne porte que "{nom}", comme la
+        # LocalizationTable construite en jeu.
         $value =~ s/\{(\w+):\w+\}/{$1}/g;
 
         $strings{$locale}{$key} = $value;

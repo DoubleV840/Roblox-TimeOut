@@ -159,6 +159,9 @@ SoundLibrary.List = {
 
 	shop_hum_time = { id = "rbxasset://sounds/action_falling.mp3", volume = 0.16, pitch = 0.8, looped = true, range = 60 },
 	shop_hum_auto = { id = "rbxasset://sounds/action_falling.mp3", volume = 0.16, pitch = 1.35, looped = true, range = 60 },
+	-- Le troisieme comptoir (packs) : entre les deux autres, pour qu'on distingue
+	-- les trois guichets a l'oreille avant meme d'avoir lu leur panneau.
+	shop_hum_pack = { id = "rbxasset://sounds/action_falling.mp3", volume = 0.16, pitch = 1.05, looped = true, range = 60 },
 	upgrade_zone_hum = { id = "rbxasset://sounds/action_falling.mp3", volume = 0.15, pitch = 1.1, looped = true, range = 55 },
 	-- Achat de Chrono Boost : le pitch monte d'un cran a chaque niveau, on entend
 	-- l'echelle grimper.
@@ -193,6 +196,67 @@ SoundLibrary.List = {
 	-- Ajoute SOUS l'annonce a partir des hauts paliers : la montee au Terminus
 	-- doit s'entendre autrement qu'une montee au Buffet, pas seulement plus fort.
 	tier_announce_big = { id = "rbxasset://sounds/bass.wav", volume = 0.7, pitch = 0.65 },
+
+	----------------------------------------------------------------------------
+	-- Power-ups du cookie (lot 5)
+	----------------------------------------------------------------------------
+
+	-- Une zone de power-up bourdonne comme celle du Chrono Boost, mais chacune a
+	-- sa hauteur (imposee par PowerUpZones, celle d'ici ne sert pas) : les cinq
+	-- salles ne sonnent pas pareil, et on reconnait la sienne a l'oreille.
+	powerup_zone_hum = { id = "rbxasset://sounds/action_falling.mp3", volume = 0.14, looped = true, range = 55 },
+	-- Achat d'un niveau : le pitch monte d'un cran a chaque fois, comme le
+	-- Chrono Boost -- on entend l'echelle grimper.
+	powerup_bought = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.6, pitch = 1.15, range = 70 },
+	-- Le clic critique (x10). Il doit percer la gamme du clic normal, donc plus
+	-- haut et plus fort que tout ce qui sort du cookie.
+	cookie_critical = { id = "rbxasset://sounds/metal.ogg", volume = 0.55, pitch = 2.4, range = 70 },
+	-- Le declenchement d'une Frenesie : 20 secondes ou le cookie s'embrase.
+	frenzy_start = { id = "rbxasset://sounds/unsheath.wav", volume = 0.7, pitch = 1.4 },
+
+	----------------------------------------------------------------------------
+	-- Packs (lot 3)
+	----------------------------------------------------------------------------
+
+	-- Un pack tombe dans la poche : c'est l'icone qui se met a pulser.
+	pack_granted = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.6, pitch = 1.25 },
+	-- Le retournement d'une carte. Son pitch monte avec la RARETE (impose par
+	-- src/client/Packs) : on entend ce qu'on a tire avant de l'avoir lu, et c'est
+	-- ce qui fait sursauter sur une Legendaire.
+	pack_flip = { id = "rbxasset://sounds/snap.wav", volume = 0.5 },
+	-- La carte gardee, les deux autres perdues.
+	pack_choose = { id = "rbxasset://sounds/metal.ogg", volume = 0.6, pitch = 1.7 },
+
+	----------------------------------------------------------------------------
+	-- Mini-jeux (lot 6, 3D sauf le train)
+	----------------------------------------------------------------------------
+
+	-- Le coup d'envoi d'une phase active (duel, braquage).
+	minigame_start = { id = "rbxasset://sounds/unsheath.wav", volume = 0.65, pitch = 1.1, range = 90 },
+	-- Un tour qui passe : les dalles des chaises musicales, les crans du wagon.
+	-- Le pitch monte avec le tour (impose par la regle) -- la tension avec lui.
+	minigame_tick = { id = "rbxasset://sounds/switch3.wav", volume = 0.45, range = 80 },
+	-- Quelqu'un vient de sortir. Sec et grave : ce n'est pas une bonne nouvelle.
+	minigame_eliminated = { id = "rbxasset://sounds/hit.wav", volume = 0.5, pitch = 0.6, range = 80 },
+	-- Le gros lot : jackpot du distributeur, coffre du braquage force.
+	minigame_jackpot = { id = "rbxasset://sounds/metal.ogg", volume = 0.75, pitch = 2.3, range = 100 },
+	-- La roue qui tourne, le temps de son lancer.
+	minigame_wheel = { id = "rbxasset://sounds/action_falling.mp3", volume = 0.4, pitch = 1.5, range = 80 },
+
+	-- Le Train de minuit. Le seul evenement que TOUT le serveur entend : il
+	-- s'annonce longtemps a l'avance et doit se remarquer de tous les etages.
+	train_horn = { id = "rbxasset://sounds/bass.wav", volume = 0.7, pitch = 0.45 },
+	train_arrive = { id = "rbxasset://sounds/unsheath.wav", volume = 0.7, pitch = 0.5, range = 250 },
+	train_depart = { id = "rbxasset://sounds/bass.wav", volume = 0.8, pitch = 0.35, range = 250 },
+
+	----------------------------------------------------------------------------
+	-- Cadeaux de survie (lot 7)
+	----------------------------------------------------------------------------
+
+	-- Un seuil vient d'etre atteint : l'icone se met a pulser. Discret -- le
+	-- cadeau attend, il n'y a aucune urgence a le reclamer.
+	reward_ready = { id = "rbxasset://sounds/electronicpingshort.wav", volume = 0.4, pitch = 1.05 },
+	reward_claim = { id = "rbxasset://sounds/metal.ogg", volume = 0.6, pitch = 1.9 },
 
 	----------------------------------------------------------------------------
 	-- Decor du bas de l'immeuble (3D)

@@ -45,6 +45,11 @@ local REFRESH_INTERVAL = 0.2
 local panels = {}
 local currentTier = Tiers.FIRST
 local currentTime = 0
+
+-- La remise en cours du joueur (carte "Billet coupe-file", lot 3). Le panneau
+-- affiche le prix REMISE : sans elle, le joueur lirait un prix plus eleve que
+-- celui qu'on va lui prendre, et le bouton apparaitrait trop tard.
+local currentDiscount = 0
 local lastRefresh = 0
 
 local confirmFrame = nil
@@ -154,12 +159,16 @@ local function refreshPanel(panel)
 	panel.frame.Visible = true
 
 	local tier = Tiers.Get(target)
-	local required = tier.cost + math.max(Config.TIER_SAFETY_MARGIN, tier.cost * Config.TIER_SAFETY_FRACTION)
+	local price = Tiers.Price(target, currentDiscount)
+	local required = Tiers.Required(target, currentDiscount)
 
 	panel.stroke.Color = tier.color
 	panel.title.Text = Locale.Text(tier.key)
 	TextFx.Mark(panel.title, 0.35 + (target / Tiers.LAST) * 0.5, tier.color)
-	panel.price.Text = Locale.Text("tier_gate_price", { amount = tier.cost })
+	panel.price.Text = Locale.Text(
+		currentDiscount > 0 and "tier_gate_price_discount" or "tier_gate_price",
+		{ amount = price, full = tier.cost }
+	)
 
 	-- Chez lui : le panneau se tait, la barriere ne bloque plus.
 	if currentTier >= target then
@@ -305,7 +314,7 @@ function TierGates.Confirm(gate)
 
 	target = Tiers.Clamp(target)
 	local tier = Tiers.Get(target)
-	local required = tier.cost + math.max(Config.TIER_SAFETY_MARGIN, tier.cost * Config.TIER_SAFETY_FRACTION)
+	local required = Tiers.Required(target, currentDiscount)
 
 	-- Le serveur refuserait de toute facon : autant le dire ici, sans ouvrir une
 	-- fenetre qui ne propose rien.
@@ -318,7 +327,7 @@ function TierGates.Confirm(gate)
 	confirmTitle.Text = Locale.Text(tier.key)
 	TextFx.Mark(confirmTitle, 0.6, tier.color)
 	confirmInfo.Text = Locale.Text("tier_confirm_info", {
-		amount = tier.cost,
+		amount = Tiers.Price(target, currentDiscount),
 		multiplier = tier.multiplier,
 	})
 
@@ -327,8 +336,9 @@ end
 
 --------------------------------------------------------------------------------
 
-function TierGates.SetTier(tier)
+function TierGates.SetTier(tier, discount)
 	currentTier = Tiers.Clamp(tier)
+	currentDiscount = discount or 0
 	refreshAll()
 
 	-- Le palier vient d'etre paye : la fenetre encore ouverte ne propose plus rien.

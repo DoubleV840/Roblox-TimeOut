@@ -14,6 +14,10 @@
 --     visuelle, mais indexee sur le palier atteint et non plus sur le temps
 --     possede.
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local Config = require(ReplicatedStorage.Shared.Config)
+
 local Tiers = {}
 
 Tiers.RARITY_COMMON = "Common"
@@ -111,6 +115,30 @@ end
 -- arriver dans le jeu.
 function Tiers.Cost(index)
 	return Tiers.Get(index).cost
+end
+
+-- Ce que coute REELLEMENT l'entree, remise comprise.
+--
+-- La carte "Billet coupe-file" (lot 3) donne une remise sur la prochaine entree.
+-- Le calcul vit ici, en partage, et non de chaque cote : le serveur decide du
+-- paiement, le client dessine le panneau de la barriere et la barre de
+-- progression du HUD -- trois endroits qui doivent tomber sur le meme chiffre au
+-- centime pres, sinon la barre se remplit avant que l'entree ne soit acceptee.
+function Tiers.Price(index, discount)
+	return math.floor(Tiers.Cost(index) * (1 - math.clamp(discount or 0, 0, 0.9)))
+end
+
+-- Ce qu'il faut POSSEDER pour entrer : le prix, plus de quoi ne pas ressortir
+-- mourant de l'autre cote. "Payer ne peut pas tuer" -- se suicider en achetant un
+-- etage serait la pire premiere impression possible.
+--
+-- La marge se calcule sur le prix PLEIN et non sur le prix remise : elle protege
+-- de se retrouver a sec de l'autre cote, ce qui ne depend pas de la remise.
+function Tiers.Required(index, discount)
+	local cost = Tiers.Cost(index)
+	local margin = math.max(Config.TIER_SAFETY_MARGIN, cost * Config.TIER_SAFETY_FRACTION)
+
+	return Tiers.Price(index, discount) + margin
 end
 
 function Tiers.Multiplier(index)

@@ -1,0 +1,7 @@
+# Formatage Luau : aligne sur le style deja en place dans src/ (tabulations, guillemets doubles)
+column_width = 120
+line_endings = "Unix"
+indent_type = "Tabs"
+indent_width = 4
+quote_style = "AutoPreferDouble"
+call_parentheses = "Always"

@@ -3,7 +3,6 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local CollectionService = game:GetService("CollectionService")
 local RunService = game:GetService("RunService")
-local Workspace = game:GetService("Workspace")
 
 local Config = require(ReplicatedStorage.Shared.Config)
 local Remotes = require(ReplicatedStorage.Shared.Remotes)
@@ -25,6 +24,11 @@ local TierWindows = require(script.TierWindows)
 local TierAnnounce = require(script.TierAnnounce)
 local Nameplates = require(script.Nameplates)
 local Flicker = require(script.Flicker)
+local MiniGamesUI = require(script.MiniGames)
+local PacksUI = require(script.Packs)
+local PowerUpsUI = require(script.PowerUpZones)
+local RewardsUI = require(script.Rewards)
+local BoonsUI = require(script.Boons)
 
 TextFx.Bind()
 Locale.Bind()
@@ -188,18 +192,29 @@ end
 
 local currentClickPower = 1
 
+-- Le gain de base d'un clic, avant le Chrono Boost. Il vaut Config.CLICKER_REWARD
+-- pour tout le monde, sauf pour qui a pris la carte "Bielle" (lot 3), qui le fait
+-- passer a 2 s. Le serveur l'envoie avec le niveau : sans lui, le panneau du
+-- Chrono Boost annoncerait la moitie de ce que le clic rapporte vraiment.
+local currentClickBase = Config.CLICKER_REWARD
+
 -- Le badge affiche le PALIER ATTEINT, jamais un rang calcule sur le temps
 -- possede : il ne bouge donc pas quand le chrono monte ou descend, seulement
 -- quand une barriere est franchie. Deux echelles paralleles -- une gratuite, une
 -- payante -- embrouilleraient tout le monde pour rien.
 local currentTier = Tiers.Get(Tiers.FIRST)
 
+-- La remise en cours du joueur (carte "Billet coupe-file", lot 3) : la barre
+-- vise le prix REMISE, sinon elle continuerait de reclamer un montant que le
+-- serveur n'exige plus.
+local currentDiscount = 0
+
 -- Ce qu'il faut POSSEDER pour franchir un palier : le prix, plus la marge de
--- securite exigee par le serveur (voir TierService.Required). La barre vise ce
--- montant-la et pas le prix nu, sinon elle serait pleine avant que l'entree ne
--- soit acceptee.
+-- securite. Le calcul vit dans Tiers, partage avec le serveur qui l'exigera et
+-- avec le panneau de la barriere qui l'affiche -- la barre vise ce montant-la et
+-- pas le prix nu, sinon elle serait pleine avant que l'entree ne soit acceptee.
 local function requiredFor(tier)
-	return tier.cost + math.max(Config.TIER_SAFETY_MARGIN, tier.cost * Config.TIER_SAFETY_FRACTION)
+	return Tiers.Required(tier.index, currentDiscount)
 end
 
 local function setProgressFull(full)
@@ -520,9 +535,21 @@ local NOTIFY_SOUNDS = {
 	notify_autoclick_offline = "autoclick_bought",
 	notify_autoclick_power = "autoclick_bought",
 	notify_autoclick_fuel = "autoclick_bought",
-	notify_bet_unlocked = "bet_unlocked",
+	notify_minigame_unlocked = "bet_unlocked",
 	notify_tier_poor = "tier_denied",
 	notify_tier_locked = "tier_denied",
+	notify_powerup_poor = "ui_denied",
+	notify_minigame_full = "ui_denied",
+	notify_powerup_done = "powerup_bought",
+	notify_frenzy = "frenzy_start",
+	notify_pack_granted = "pack_granted",
+	notify_pack_tier = "pack_granted",
+	notify_pack_bought = "pack_granted",
+	notify_reward_pack = "pack_granted",
+	notify_reward_ready = "reward_ready",
+	notify_second_wind = "revive",
+	notify_train_soon = "train_horn",
+	notify_train_boarding = "train_horn",
 }
 
 local function playNotifySound(key, color)
@@ -578,16 +605,17 @@ end)
 -- Paliers
 --------------------------------------------------------------------------------
 
-local function setTier(index)
+local function setTier(index, discount)
 	local tier = Tiers.Get(index)
 	local previous = currentTier
 
 	currentTier = tier
+	currentDiscount = discount or 0
 	Badge.Apply(tierBadge, tier)
 	tierLabel.Text = Locale.Text(tier.key)
 	tierLabel.TextColor3 = tier.color
 
-	TierGates.SetTier(tier.index)
+	TierGates.SetTier(tier.index, currentDiscount)
 	TierWindows.SetTier(tier.index)
 	updateProgress(displayTime)
 
@@ -614,8 +642,6 @@ Remotes.TierUpdated:FireServer()
 -- script.TierAnnounce : l'annonce n'est plus une ligne de notification empruntee
 -- mais un moment a elle, dont l'ampleur suit l'etage franchi (etape 12).
 
--- Popup de confirmation de pari
-
 -- Les popups gagnent POPUP_TOP_PADDING en hauteur ET en marge haute : le titre
 -- respire, et tout le reste (positions internes, marge sous les boutons) est inchange.
 local POPUP_TOP_PADDING = 14
@@ -626,124 +652,10 @@ local function addTopPadding(frame)
 	padding.Parent = frame
 end
 
-local betFrame = Instance.new("Frame")
-betFrame.Size = UDim2.new(0, 300, 0, 164)
-betFrame.Position = UDim2.new(0.5, -150, 0.5, -82)
-betFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-betFrame.BackgroundTransparency = 0.1
-betFrame.Visible = false
-betFrame.Parent = screenGui
-
-addTopPadding(betFrame)
-
-local betTitle = Instance.new("TextLabel")
-betTitle.Size = UDim2.new(1, 0, 0, 40)
-betTitle.BackgroundTransparency = 1
-betTitle.FontFace = Fonts.Main
-betTitle.TextScaled = true
-betTitle.Text = Locale.Text("bet_title")
-betTitle.Parent = betFrame
-
-TextFx.Mark(betTitle, 0.6, Color3.fromRGB(255, 150, 60))
-
-local betAmountLabel = Instance.new("TextLabel")
-betAmountLabel.Size = UDim2.new(1, 0, 0, 30)
-betAmountLabel.Position = UDim2.new(0, 0, 0, 40)
-betAmountLabel.BackgroundTransparency = 1
-betAmountLabel.TextColor3 = Color3.fromRGB(255, 221, 0)
-betAmountLabel.FontFace = Fonts.Main
-betAmountLabel.TextScaled = true
-betAmountLabel.Text = ""
-betAmountLabel.Parent = betFrame
-
-local acceptButton = Instance.new("TextButton")
-acceptButton.Size = UDim2.new(0.45, 0, 0, 40)
-acceptButton.Position = UDim2.new(0.025, 0, 1, -50)
-acceptButton.BackgroundColor3 = Color3.fromRGB(60, 180, 60)
-acceptButton.TextColor3 = Color3.new(1, 1, 1)
-acceptButton.FontFace = Fonts.Main
-acceptButton.TextScaled = true
-acceptButton.Text = Locale.Text("bet_accept")
-acceptButton.Parent = betFrame
-
-local declineButton = Instance.new("TextButton")
-declineButton.Size = UDim2.new(0.45, 0, 0, 40)
-declineButton.Position = UDim2.new(0.525, 0, 1, -50)
-declineButton.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
-declineButton.TextColor3 = Color3.new(1, 1, 1)
-declineButton.FontFace = Fonts.Main
-declineButton.TextScaled = true
-declineButton.Text = Locale.Text("bet_decline")
-declineButton.Parent = betFrame
-
-local currentBetZone = nil
-local currentBetLocked = false
-
-local function hideBetPrompt()
-	currentBetZone = nil
-	currentBetLocked = false
-	popOut(betFrame)
-end
-
-bindButtonSounds(acceptButton)
-bindButtonSounds(declineButton)
-
-acceptButton.MouseButton1Click:Connect(function()
-	if currentBetZone and not currentBetLocked then
-		Remotes.BetAccept:FireServer(currentBetZone)
-	end
-	hideBetPrompt()
-end)
-
-declineButton.MouseButton1Click:Connect(function()
-	hideBetPrompt()
-end)
-
--- La meme popup sert aux deux etats de la zone : ouverte, elle propose de miser ;
--- verrouillee, elle dit ce qu'il faut avoir atteint pour y avoir droit. Un seul
--- bouton dans ce cas -- il n'y a rien a valider.
-local function showBetPrompt(zone, amount, lockedAt)
-	currentBetZone = zone
-	currentBetLocked = lockedAt ~= nil
-
-	if currentBetLocked then
-		betTitle.Text = Locale.Text("bet_locked_title")
-		TextFx.Mark(betTitle, 0.2, Color3.fromRGB(200, 200, 210))
-		betAmountLabel.Text = Locale.Text("bet_locked_info", { amount = lockedAt })
-		betAmountLabel.TextColor3 = Color3.fromRGB(200, 200, 210)
-
-		acceptButton.Visible = false
-		declineButton.Size = UDim2.new(0.95, 0, 0, 40)
-		declineButton.Position = UDim2.new(0.025, 0, 1, -50)
-		declineButton.Text = Locale.Text("shop_close")
-	else
-		betTitle.Text = Locale.Text("bet_title")
-		TextFx.Mark(betTitle, 0.6, Color3.fromRGB(255, 150, 60))
-		betAmountLabel.Text = Locale.Text("bet_amount", { amount = amount })
-		betAmountLabel.TextColor3 = Color3.fromRGB(255, 221, 0)
-
-		acceptButton.Visible = true
-		declineButton.Size = UDim2.new(0.45, 0, 0, 40)
-		declineButton.Position = UDim2.new(0.525, 0, 1, -50)
-		declineButton.Text = Locale.Text("bet_decline")
-	end
-
-	popIn(betFrame, UDim2.new(0, 300, 0, 164))
-
-	-- Une zone encore fermee se signale a l'oreille : le "pop" de la popup est le
-	-- meme pour tout le monde, le refus qui le suit ne trompe pas.
-	if currentBetLocked then
-		Sounds.Play("ui_denied")
-	end
-end
-
-Remotes.BetPrompt.OnClientEvent:Connect(showBetPrompt)
-
-Remotes.BetPromptHide.OnClientEvent:Connect(function(zone)
-	if currentBetZone == zone then
-		hideBetPrompt()
-	end
-end)
+-- La popup de pari vivait ici. Elle est partie dans script.MiniGames avec le
+-- cadenas et le HUD des tours : l'etape 24 unifie les huit mini-jeux, et le pari
+-- d'origine est devenu l'un d'eux -- il n'avait plus de raison d'avoir son
+-- interface a part.
 
 -- Popup d'amelioration de clic
 
@@ -865,7 +777,8 @@ local function getUpgradeWorldSign(zone)
 	statsLabel.BackgroundTransparency = 1
 	statsLabel.FontFace = Fonts.Main
 	statsLabel.TextScaled = true
-	statsLabel.Text = Locale.Text("upgrade_stats", { level = currentClickPower, bonus = Config.CLICKER_REWARD * currentClickPower })
+	statsLabel.Text =
+		Locale.Text("upgrade_stats", { level = currentClickPower, bonus = currentClickBase * currentClickPower })
 	statsLabel.Parent = billboard
 
 	sign = { billboard = billboard, statsLabel = statsLabel }
@@ -907,11 +820,13 @@ Remotes.UpgradePromptHide.OnClientEvent:Connect(function(zone)
 	end
 end)
 
-Remotes.ClickPowerUpdated.OnClientEvent:Connect(function(clickPower)
+Remotes.ClickPowerUpdated.OnClientEvent:Connect(function(clickPower, clickBase)
 	currentClickPower = clickPower
+	currentClickBase = clickBase or Config.CLICKER_REWARD
 
 	for _, sign in upgradeWorldSigns do
-		sign.statsLabel.Text = Locale.Text("upgrade_stats", { level = clickPower, bonus = Config.CLICKER_REWARD * clickPower })
+		sign.statsLabel.Text =
+			Locale.Text("upgrade_stats", { level = clickPower, bonus = currentClickBase * clickPower })
 		markUpgradeSign(sign, clickPower)
 	end
 end)
@@ -1246,6 +1161,65 @@ autoRow.button.MouseButton1Click:Connect(function()
 end)
 
 --------------------------------------------------------------------------------
+-- Guichet "Pack" : packs a trois cartes (lot 3, etape 16)
+--------------------------------------------------------------------------------
+
+-- Meme forme que le guichet a temps : une ligne par produit, le libelle a gauche
+-- et le prix en Robux a droite. La seule chose en plus est la ligne du haut, qui
+-- rappelle combien de packs attendent deja d'etre ouverts -- un joueur qui en a
+-- trois en attente n'a aucune raison d'en acheter un quatrieme sans le savoir.
+
+local packProducts = {}
+for _, product in Config.PACK_PRODUCTS do
+	if product.productId ~= 0 then
+		table.insert(packProducts, product)
+	end
+end
+
+local PACK_SHOP_WAITING_LINE = 24
+
+local PACK_SHOP_SIZE = UDim2.new(
+	0,
+	320,
+	0,
+	shopHeight(PACK_SHOP_WAITING_LINE + #packProducts * (SHOP_ROW_HEIGHT + SHOP_ROW_GAP))
+)
+
+local packShopFrame = newShopFrame(PACK_SHOP_SIZE.Y.Offset)
+newShopTitle(packShopFrame, "shop_pack_title", Color3.fromRGB(190, 110, 255))
+
+local packWaitingLabel = Instance.new("TextLabel")
+packWaitingLabel.Size = UDim2.new(1, -24, 0, PACK_SHOP_WAITING_LINE)
+packWaitingLabel.Position = UDim2.new(0, 12, 0, SHOP_CONTENT_TOP - 4)
+packWaitingLabel.BackgroundTransparency = 1
+packWaitingLabel.TextColor3 = Color3.fromRGB(190, 195, 205)
+packWaitingLabel.FontFace = Fonts.Main
+packWaitingLabel.TextScaled = true
+packWaitingLabel.Text = ""
+packWaitingLabel.Parent = packShopFrame
+
+for index, product in packProducts do
+	local row = newShopRow(packShopFrame, index)
+	row.button.Position = UDim2.new(
+		0,
+		12,
+		0,
+		SHOP_CONTENT_TOP + PACK_SHOP_WAITING_LINE + (index - 1) * (SHOP_ROW_HEIGHT + SHOP_ROW_GAP)
+	)
+	row.amount.Text = Locale.Text("shop_pack_row", { rarity = Locale.Text("rarity_" .. product.rarity) })
+	row.price.Text = Locale.Text("shop_price", { price = product.robux })
+
+	-- L'achat lui-meme est declenche par le serveur (PromptProductPurchase) :
+	-- le client ne fait que demander, il n'a aucun pouvoir sur le credit.
+	row.button.MouseButton1Click:Connect(function()
+		Sounds.Play("ui_purchase_prompt")
+		Remotes.ShopBuy:FireServer(product.productId)
+	end)
+end
+
+local packShopCloseButton = newShopCloseButton(packShopFrame)
+
+--------------------------------------------------------------------------------
 
 local currentShopZone = nil
 
@@ -1253,16 +1227,32 @@ local function hideShopPrompt()
 	currentShopZone = nil
 	popOut(shopFrame)
 	popOut(autoShopFrame)
+	popOut(packShopFrame)
 end
 
 shopCloseButton.MouseButton1Click:Connect(hideShopPrompt)
 autoShopCloseButton.MouseButton1Click:Connect(hideShopPrompt)
+packShopCloseButton.MouseButton1Click:Connect(hideShopPrompt)
 
 Remotes.ShopPrompt.OnClientEvent:Connect(function(zone, kind, state)
 	if kind == Config.SHOP_KIND_AUTOCLICK then
 		setAutoClickers(state)
 		currentShopZone = zone
 		popIn(autoShopFrame, AUTO_SHOP_SIZE)
+		return
+	end
+
+	if kind == Config.SHOP_KIND_PACK then
+		-- Guichet a packs sans aucun produit vendable (identifiants pas encore
+		-- crees dans le Creator Dashboard) : inutile d'ouvrir une popup vide.
+		if #packProducts == 0 then
+			return
+		end
+
+		packWaitingLabel.Text = Locale.Text("shop_pack_waiting", { count = (state and state.count) or 0 })
+
+		currentShopZone = zone
+		popIn(packShopFrame, PACK_SHOP_SIZE)
 		return
 	end
 
@@ -1316,230 +1306,20 @@ Remotes.Revived.OnClientEvent:Connect(function()
 end)
 
 --------------------------------------------------------------------------------
--- Cadenas des zones de pari verrouillees
+-- Mini-jeux, packs, power-ups, cadeaux
 --------------------------------------------------------------------------------
 
--- Le verrou est propre a chaque joueur alors que le panneau de la zone est
--- partage par tous : c'est donc le client qui dessine le cadenas, sur un
--- BillboardGui a lui, cree et detruit au gre des messages du serveur.
-local betLockSigns = {}
+-- Quatre interfaces, quatre modules, et rien de tout ca ici : le cadenas des
+-- zones, le HUD des parties en cours et la popup de mise vivaient dans ce
+-- fichier tant qu'il n'y avait qu'un pari. L'etape 24 les a rendus communs aux
+-- huit jeux, donc ils sont partis dans script.MiniGames -- et les trois lots
+-- suivants ont pris le meme chemin plutot que d'allonger celui-ci.
 
-local function setBetLock(zone, locked, unlockAt)
-	local sign = betLockSigns[zone]
-
-	if not locked then
-		if sign then
-			sign.billboard:Destroy()
-			betLockSigns[zone] = nil
-		end
-		return
-	end
-
-	if not sign then
-		local billboard = Instance.new("BillboardGui")
-		billboard.Name = "MyBetLockSign"
-		billboard.Size = UDim2.new(8, 0, 3, 0) -- en studs : taille fixe dans le monde
-		billboard.StudsOffset = Vector3.new(0, 7, 0) -- au-dessus du panneau de mise
-		billboard.AlwaysOnTop = true
-		billboard.Parent = zone
-
-		-- Le cadenas est un emoji : aucune police du jeu ne le contient, c'est le
-		-- repli systeme de Roblox qui le dessine. Le texte en dessous porte le
-		-- sens a lui seul, pour que rien ne soit perdu si le glyphe manque.
-		local glyph = Instance.new("TextLabel")
-		glyph.Size = UDim2.new(1, 0, 0.55, 0)
-		glyph.BackgroundTransparency = 1
-		glyph.FontFace = Fonts.Symbol
-		glyph.TextScaled = true
-		glyph.Text = "\u{1F512}"
-		glyph.TextColor3 = Color3.fromRGB(200, 200, 210)
-		glyph.Parent = billboard
-
-		local label = Instance.new("TextLabel")
-		label.Size = UDim2.new(1, 0, 0.45, 0)
-		label.Position = UDim2.new(0, 0, 0.55, 0)
-		label.BackgroundTransparency = 1
-		label.FontFace = Fonts.Main
-		label.TextScaled = true
-		label.Parent = billboard
-
-		TextFx.Mark(label, 0.25, Color3.fromRGB(200, 200, 210))
-
-		sign = { billboard = billboard, label = label }
-		betLockSigns[zone] = sign
-	end
-
-	sign.label.Text = Locale.Text("bet_locked_sign", { amount = unlockAt })
-end
-
-Remotes.BetLockUpdated.OnClientEvent:Connect(setBetLock)
-
---------------------------------------------------------------------------------
--- HUD des paris en cours
---------------------------------------------------------------------------------
-
--- Une fois sa mise partie, le joueur repart farmer ailleurs : le panneau de la
--- zone ne lui dit plus rien. Ce bandeau le suit et fait descendre le compte a
--- rebours du tirage, meme a l'autre bout de la map. Les tours ouverts ou il n'a
--- rien mis y figurent aussi, en gris : c'est ce qui donne envie d'y courir avant
--- la fin du decompte.
---
--- Le serveur n'envoie qu'une echeance (son horloge, partagee avec le client) a
--- chaque changement de tour ; le decompte, lui, tourne ici, image par image.
-
-local BET_HUD_WIDTH = 240
-local BET_HUD_TITLE_HEIGHT = 26
-local BET_HUD_ROW_HEIGHT = 46
-local BET_HUD_ROW_GAP = 6
-local BET_HUD_TIMER_WIDTH = 74
-
-local BET_HUD_CALM = Color3.fromRGB(120, 220, 140) -- il reste le temps de miser
-local BET_HUD_URGENT = Color3.fromRGB(255, 90, 70) -- tirage imminent
-local BET_HUD_MINE = Color3.fromRGB(255, 200, 60) -- ma mise est engagee dedans
-local BET_HUD_OTHER = Color3.fromRGB(150, 160, 175) -- tour ouvert, sans moi
-
-local betHud = Instance.new("Frame")
-betHud.Name = "BetHud"
-betHud.AnchorPoint = Vector2.new(1, 0)
-betHud.Position = UDim2.new(1, -16, 0, 96)
-betHud.Size = UDim2.new(0, BET_HUD_WIDTH, 0, BET_HUD_TITLE_HEIGHT)
-betHud.BackgroundTransparency = 1
-betHud.Visible = false
-betHud.Parent = screenGui
-
-local betHudTitle = Instance.new("TextLabel")
-betHudTitle.Size = UDim2.new(1, 0, 0, BET_HUD_TITLE_HEIGHT)
-betHudTitle.BackgroundTransparency = 1
-betHudTitle.FontFace = Fonts.Main
-betHudTitle.TextScaled = true
-betHudTitle.TextXAlignment = Enum.TextXAlignment.Right
-betHudTitle.Text = Locale.Text("bet_hud_title")
-betHudTitle.Parent = betHud
-
-TextFx.Mark(betHudTitle, 0.35, Color3.fromRGB(255, 150, 60))
-
-local betHudList = Instance.new("Frame")
-betHudList.Position = UDim2.new(0, 0, 0, BET_HUD_TITLE_HEIGHT + BET_HUD_ROW_GAP)
-betHudList.Size = UDim2.new(1, 0, 1, -(BET_HUD_TITLE_HEIGHT + BET_HUD_ROW_GAP))
-betHudList.BackgroundTransparency = 1
-betHudList.Parent = betHud
-
-local betHudLayout = Instance.new("UIListLayout")
-betHudLayout.SortOrder = Enum.SortOrder.LayoutOrder
-betHudLayout.Padding = UDim.new(0, BET_HUD_ROW_GAP)
-betHudLayout.Parent = betHudList
-
--- Une ligne = un tour ouvert : la mise et le nombre de parieurs a gauche, le
--- compte a rebours a droite.
-local function newBetHudRow(index, joined)
-	local accent = joined and BET_HUD_MINE or BET_HUD_OTHER
-
-	local frame = Instance.new("Frame")
-	frame.Name = "Round" .. index
-	frame.Size = UDim2.new(1, 0, 0, BET_HUD_ROW_HEIGHT)
-	frame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-	frame.BackgroundTransparency = joined and 0.15 or 0.4
-	frame.LayoutOrder = index
-	frame.Parent = betHudList
-
-	local corner = Instance.new("UICorner")
-	corner.CornerRadius = UDim.new(0, 6)
-	corner.Parent = frame
-
-	local stroke = Instance.new("UIStroke")
-	stroke.Color = accent
-	stroke.Thickness = joined and 2 or 1
-	stroke.Transparency = joined and 0.1 or 0.55
-	stroke.Parent = frame
-
-	local amount = Instance.new("TextLabel")
-	amount.Size = UDim2.new(1, -(BET_HUD_TIMER_WIDTH + 20), 0, 22)
-	amount.Position = UDim2.new(0, 10, 0, 4)
-	amount.BackgroundTransparency = 1
-	amount.TextColor3 = accent
-	amount.FontFace = Fonts.Main
-	amount.TextScaled = true
-	amount.TextXAlignment = Enum.TextXAlignment.Left
-	amount.Parent = frame
-
-	local players = Instance.new("TextLabel")
-	players.Size = UDim2.new(1, -(BET_HUD_TIMER_WIDTH + 20), 0, 16)
-	players.Position = UDim2.new(0, 10, 0, 26)
-	players.BackgroundTransparency = 1
-	players.TextColor3 = Color3.fromRGB(190, 195, 205)
-	players.FontFace = Fonts.Main
-	players.TextScaled = true
-	players.TextXAlignment = Enum.TextXAlignment.Left
-	players.Parent = frame
-
-	local timer = Instance.new("TextLabel")
-	timer.Size = UDim2.new(0, BET_HUD_TIMER_WIDTH, 1, -12)
-	timer.Position = UDim2.new(1, -(BET_HUD_TIMER_WIDTH + 10), 0, 6)
-	timer.BackgroundTransparency = 1
-	timer.TextColor3 = BET_HUD_CALM
-	timer.TextStrokeTransparency = 0.4
-	timer.TextStrokeColor3 = Color3.new(0, 0, 0)
-	timer.FontFace = Fonts.Main
-	timer.TextScaled = true
-	timer.TextXAlignment = Enum.TextXAlignment.Right
-	timer.Parent = frame
-
-	return { frame = frame, amount = amount, players = players, timer = timer }
-end
-
-local betHudRows = {}
-
-local function clearBetHudRows()
-	for _, row in betHudRows do
-		row.frame:Destroy()
-	end
-
-	table.clear(betHudRows)
-end
-
-Remotes.BetRoundsUpdated.OnClientEvent:Connect(function(rounds)
-	clearBetHudRows()
-
-	for index, round in rounds do
-		local row = newBetHudRow(index, round.joined)
-
-		row.amount.Text = Locale.Text("bet_amount", { amount = round.amount })
-		row.players.Text = Locale.Text(round.joined and "bet_hud_mine" or "bet_hud_players", { count = round.count })
-		row.endsAt = round.endsAt
-
-		table.insert(betHudRows, row)
-	end
-
-	betHud.Size = UDim2.new(
-		0,
-		BET_HUD_WIDTH,
-		0,
-		BET_HUD_TITLE_HEIGHT + BET_HUD_ROW_GAP + #betHudRows * (BET_HUD_ROW_HEIGHT + BET_HUD_ROW_GAP)
-	)
-	betHud.Visible = #betHudRows > 0
-end)
-
--- Le decompte se calcule a partir de l'horloge serveur : aucune derive possible,
--- et deux joueurs devant la meme zone voient exactement le meme chiffre.
-RunService.Heartbeat:Connect(function()
-	if #betHudRows == 0 then
-		return
-	end
-
-	local now = Workspace:GetServerTimeNow()
-
-	for _, row in betHudRows do
-		local remaining = math.max(0, (row.endsAt or now) - now)
-		local urgency = 1 - math.clamp(remaining / Config.BET_JOIN_WINDOW, 0, 1)
-
-		row.timer.Text = Locale.Text("bet_hud_timer", { seconds = string.format("%.1f", remaining) })
-		row.timer.TextColor3 = BET_HUD_CALM:Lerp(BET_HUD_URGENT, urgency)
-	end
-end)
-
--- Au demarrage, un tour peut deja tourner : on reclame l'etat courant plutot
--- que d'attendre le prochain changement.
-Remotes.BetRoundsUpdated:FireServer()
+MiniGamesUI.Start(screenGui)
+PacksUI.Start(screenGui)
+PowerUpsUI.Start(screenGui)
+RewardsUI.Start(screenGui)
+BoonsUI.Start(screenGui)
 
 Remotes.PlayerTimedOut.OnClientEvent:Connect(function()
 	playerIsDead = true
@@ -1547,7 +1327,9 @@ Remotes.PlayerTimedOut.OnClientEvent:Connect(function()
 	countingDown = false
 	label.Text = TimeFormat.Clock(0)
 	label.TextColor3 = TIME_COLOR_LOW
-	hideBetPrompt()
+	MiniGamesUI.Hide()
+	PowerUpsUI.Hide()
+	PacksUI.Close()
 	hideUpgradePrompt()
 	hideShopPrompt()
 	TierGates.HideConfirm()

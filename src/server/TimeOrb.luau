@@ -12,6 +12,7 @@ local Remotes = require(ReplicatedStorage.Shared.Remotes)
 local Sounds = require(ReplicatedStorage.Shared.Sounds)
 local PlayerData = require(script.Parent.PlayerData)
 local TierService = require(script.Parent.TierService)
+local Boons = require(script.Parent.Boons)
 
 local TimeOrb = {}
 
@@ -114,7 +115,17 @@ local function setupOrb(orb)
 
 		-- Aller chercher une orbe est un geste : le palier le multiplie, comme un
 		-- clic sur le cookie.
-		local amount = math.max(1, math.round(Config.ORB_TIME_BONUS * TierService.Multiplier(player)))
+		--
+		-- Deux cartes de pack entrent ici, et nulle part ailleurs :
+		--   "Orbes bonifiees" (data.OrbBonus)  -- definitif, un facteur de plus
+		--   "Pluie d'orbes"   (Boons)          -- 60 s, et le retour est immediat
+		local amount = Config.ORB_TIME_BONUS * TierService.Multiplier(player) * (data.OrbBonus or 1)
+
+		if Boons.Active(player, Config.BOON_ORB_RAIN) then
+			amount *= Config.BOON_ORB_RAIN_MULTIPLIER
+		end
+
+		amount = math.max(1, math.round(amount))
 
 		data.TimeLeft += amount
 		PlayerData.NoteTime(data)
@@ -123,10 +134,20 @@ local function setupOrb(orb)
 
 		hide()
 
+		-- Le temps de retour est propre au joueur qui l'a prise : "Orbes
+		-- accelerees" le raccourcit definitivement, la "Pluie d'orbes" le
+		-- supprime pendant 60 s. Une orbe est donc plus ou moins genereuse selon
+		-- QUI vient de la ramasser -- c'est ce que valent ces cartes.
+		local cooldown = Config.ORB_COOLDOWN * (data.OrbSpeed or 1)
+
+		if Boons.Active(player, Config.BOON_ORB_RAIN) then
+			cooldown = 0
+		end
+
 		-- Un fil a part, et non un task.wait dans le gestionnaire de contact : le
 		-- retour de l'orbe ne depend plus de ce qui arrive au contact qui l'a
 		-- consommee.
-		task.delay(Config.ORB_COOLDOWN, respawn)
+		task.delay(cooldown, respawn)
 	end
 
 	orb.Touched:Connect(function(hit)

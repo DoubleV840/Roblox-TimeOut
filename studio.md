@@ -4,7 +4,32 @@
 
 La règle qui vaut partout : **une Part nue et taguée suffit**. Les portiques, les auras, les panneaux, les cadenas sont construits par le jeu à partir du tag. Il n'y a jamais rien à décorer autour d'une zone — et ce qui est décoré à la main risque d'être écrasé.
 
-Les sections sont dans l'ordre où le code arrive. Une section marquée *« pas encore »* décrit un travail dont le code n'existe pas : le faire maintenant ne servirait à rien.
+Les sections sont dans l'ordre où le code est arrivé. **Tout le code des plans 1 et 2 est livré** : il n'y a plus de section « pas encore ». Ce qui reste à faire ici est du bâtiment, quelques tags, et deux identifiants de produit à recopier.
+
+---
+
+## Avant tout — brancher Rojo
+
+Le code vit dans `src/`, pas dans la place. Sans ce branchement, tu construis dans une place vide de scripts et rien de ce qui suit ne réagit.
+
+**Une fois pour toutes, dans un terminal, à la racine du projet :**
+
+```bash
+aftman install    # installe Rojo, StyLua et Selene aux versions du projet
+rojo serve        # laisse tourner tant que tu travailles
+```
+
+**Puis dans Studio :** onglet *Rojo* → **Connect**. La sync est active tant que le terminal tourne.
+
+Ce que Rojo gère, et **rien d'autre** : `ReplicatedStorage.Shared`, `ServerScriptService.Server`, `StarterPlayerScripts.Client`, et `Workspace.Baseplate`. Tout ce que tu poses toi-même dans *Workspace* lui est invisible — **tes salles ne risquent rien**, tant que tu n'appelles pas une Part `Baseplate`.
+
+**Si le menu *Plugins* affiche deux fois « Rojo »** : c'est un doublon d'affichage, laissé quand le fichier du plugin a été remplacé pendant que Studio tournait. Quitte Studio par `Cmd+Q` — fermer la fenêtre ne suffit pas — et rouvre. S'il persiste, une seconde copie vient du Creator Store : *Plugins → Manage Plugins*, désinstalle celle-là et garde celle du dossier local, que `rojo plugin install` tient alignée sur le CLI.
+
+**Après avoir mis à jour Rojo**, réinstalle le plugin pour qu'il ait la même version que le CLI, sinon la connexion est refusée :
+
+```bash
+rojo plugin install
+```
 
 ---
 
@@ -141,19 +166,9 @@ Pour ne pas attendre deux heures, baisse temporairement `Config.AUTOCLICK_FUEL_B
 
 ---
 
-## Hors Studio, après chaque livraison
+## À faire maintenant — lot 2, donner envie de monter
 
-Les textes du jeu vivent dans `src/shared/Translations.luau` (11 langues), et sont exportés dans `localization/TimeOut.csv`.
-
-Le lot 1 a ajouté 22 clés et supprimé les 8 rangs ; le lot 4 en a ajouté 4 de plus. Le CSV est déjà regénéré — il reste à l'importer : *Creator Dashboard → ton jeu → Localization → Table Management → Import*.
-
-Ce n'est pas bloquant pour tester : le jeu lit `Translations.luau` directement. L'import ne sert qu'au portail de traduction de Roblox, qui peut compléter les langues qu'on ne couvre pas.
-
----
-
-## Pas encore — lot 2, donner envie de monter
-
-Le code des panneaux d'appel, des panneaux au-dessus des joueurs et des annonces n'est pas écrit. Le décor, lui, peut se construire dès maintenant si tu en as envie : il ne dépend d'aucun code.
+Le code est livré : les panneaux d'appel, les panneaux au-dessus des joueurs et les annonces de montée fonctionnent dès que le décor existe. Ce qui reste est du bâtiment, et deux tags à poser.
 
 **Le Quai doit être franchement laid** — béton fissuré, carrelage manquant, flaques, sacs poubelle, affiches décollées, graffitis, néons verdâtres. C'est le seul étage que tout le monde voit ; s'il est joli, plus rien au-dessus ne fait envie.
 
@@ -166,38 +181,195 @@ Puis chaque étage plus soigné que le précédent :
 | 6–7 | Laiton poli, verre | Ambre profond, projecteurs | Mécanismes d'horlogerie visibles, dorures |
 | 8 | Or, obsidienne | Lumière propre, sans source visible | Le train est là, à quai, moteur allumé |
 
-À poser quand le code arrivera :
+### Les tags à poser
 
 - Tag **`FlickerLight`** sur chaque lumière du bas de l'immeuble (`PointLight`, `SurfaceLight`, ou la Part `Neon` qui la porte). Le grésillement est géré par le jeu. **Aucun au-dessus du palier 3** : c'est la signature du sous-sol.
 - Tag **`TierWindow`** + attribut nombre **`TargetTier`** sur chaque mur vitré, avec l'étage qu'on voit à travers.
 
-Deux contraintes de construction à anticiper :
+Comme sur les barrières, ajoute une **SurfaceGui vide** dans la vitre et règle sa `Face` sur le côté d'où arrivent les joueurs. Sans elle, le panneau se pose sur la face avant de la Part — probablement du mauvais côté.
+
+### Deux contraintes de construction
 
 - **Les salles doivent être mitoyennes**, pas dispersées. Un escalier vitré qui longe les étages est la disposition la plus simple à tenir.
 - Si les salles hautes disparaissent quand on les regarde d'en bas, c'est le chargement progressif : dans *Workspace*, augmente `StreamingTargetRadius`, ou décoche `StreamingEnabled`. Une vitre qui donne sur le vide annule tout l'intérêt de l'étape.
 
+### Le test
+
+Avec **un** client :
+
+- [ ] Devant une vitre, un panneau annonce le nom de l'étage d'en face, son prix et ce qu'il débloque, dans la couleur de cet étage.
+- [ ] Une fois cet étage acheté, le panneau se tait : on est chez soi.
+- [ ] Les néons du Quai grésillent ; aucun ne grésille au-dessus du palier 3.
+
+Avec **deux** clients (*Test → Clients and Servers*, 2 joueurs) :
+
+- [ ] Depuis le Quai, on voit bouger l'autre joueur à l'étage au-dessus, à travers la vitre.
+- [ ] Chacun voit au-dessus de la tête de l'autre son pseudo, son badge de palier et son chrono qui défile — et **pas le sien**.
+- [ ] Le chrono du panneau vire au vert→rouge comme le HUD : on repère d'un coup d'œil qui est en train de mourir.
+- [ ] En s'éloignant, le panneau de l'autre s'efface, puis disparaît.
+- [ ] Quand l'autre achète un étage, un bandeau le nomme, son personnage s'éclaire à la couleur de l'étage, et un son passe.
+- [ ] Une montée au palier 6 ou au-dessus est visiblement plus spectaculaire qu'une montée au palier 2 : bandeau plus large, plus long, son plus grave, et l'écran s'embrase.
+
 ---
 
-## Pas encore — lot 3, les packs
+## À faire maintenant — lot 3, les packs
 
-- Une Part au sol, tag **`ShopZone`**, attribut **texte** **`ShopKind`** = **`Pack`**. Au moins à partir du Buffet.
-- Dans le *Creator Dashboard → Monetization → Developer Products* : deux produits (pack Rare, pack Légendaire). Leurs identifiants seront à recopier dans `Config.luau`, comme les paquets de temps.
+Le code est livré : monter d'un palier donne déjà un pack, l'icône pulse, la cérémonie tourne. Il ne manque que le **guichet** et ses deux produits.
 
-## Pas encore — lot 5, les power-ups
+### Le guichet
 
-Une Part plate au sol par power-up, tag **`PowerUpZone`**, attribut **texte** **`PowerUp`** :
+- Une Part au sol, comme les guichets existants, tag **`ShopZone`**
+- Attribut **texte** **`ShopKind`** = **`Pack`**
+- Rien à décorer : l'aura, le bourdonnement et le panneau sont posés par le jeu
 
-| Salle | `PowerUp` |
-|---|---|
-| Le Buffet (3) | `Critique` |
-| Le Salon 1re classe (4) | `Echo` |
-| La Verrière (5) | `Frenesie` |
-| La Tour de l'horloge (6) | `PoidsDuTemps` |
-| Les Coulisses (7) | `Rouages` |
+Au moins un, à partir du Buffet (palier 3).
 
-## Pas encore — lot 6, les mini-jeux
+### Les deux produits
 
-Une Part plate au sol, tag **`MiniGameZone`**, plus trois attributs : **texte** `Game`, **nombre** `BetAmount` (la mise en secondes), **nombre** `MinTier` (le palier requis). Certains jeux demandent un décor propre en plus (une grille de dalles, une roue, une plateforme isolée, un coffre, le train) — le détail est dans `plan2.md`, étapes 25 à 31.
+*Creator Dashboard → ton jeu → Monetization → Developer Products* : créer **deux** produits, un pack Rare et un pack Légendaire. Puis recopier leurs identifiants dans `src/shared/Config.luau`, dans `Config.PACK_PRODUCTS` :
+
+```lua
+Config.PACK_PRODUCTS = {
+	{ productId = 0, rarity = "Rare", robux = 149 },        -- ← remplacer le 0
+	{ productId = 0, rarity = "Legendary", robux = 799 },   -- ← remplacer le 0
+}
+```
+
+Tant qu'ils valent `0`, **le guichet ne s'ouvre pas et le serveur refuse de vendre**. C'est voulu — mieux vaut un guichet muet qu'un achat impossible. Les packs offerts par les montées de palier, eux, fonctionnent déjà sans rien.
+
+Le champ `robux` ne sert **qu'à l'affichage**, comme partout ailleurs : le vrai prix est celui du Dashboard.
+
+### Le test
+
+- [ ] Franchir une barrière fait apparaître l'icône « PACK À OUVRIR » en haut à gauche, et la fenêtre s'ouvre toute seule.
+- [ ] Les trois cartes se retournent **une par une**, pas ensemble.
+- [ ] On ne peut cliquer une carte qu'après le dernier retournement.
+- [ ] Les trois cartes viennent de trois familles différentes (IMMÉDIAT / MOTEUR / JOKER).
+- [ ] Choisir une carte applique son effet et la notification cite son nom.
+- [ ] Refermer sans choisir laisse l'icône ; se reconnecter retrouve **exactement les mêmes trois cartes**.
+- [ ] Un pack Légendaire (palier 8) propose visiblement mieux qu'un Commun (palier 2).
+- [ ] Au guichet : acheter un pack le met en attente, et un rachat après reconnexion ne le crédite pas deux fois.
+
+**Piège de test** : les cartes valent un pourcentage du prix d'entrée du palier, et ce palier est **figé à la création du pack**. Un pack gagné au Quai ne vaudra pas davantage parce qu'on l'ouvre au Terminus — c'est voulu, sinon garder ses packs fermés serait toujours le bon calcul.
+
+---
+
+## À faire maintenant — lot 5, les power-ups
+
+Cinq Parts plates au sol, une par salle. Le portique, l'aura et le panneau sont construits par le jeu.
+
+| Salle | Palier | Tag | Attribut **texte** `PowerUp` |
+|---|---|---|---|
+| Le Buffet | 3 | `PowerUpZone` | `Critique` |
+| Le Salon 1re classe | 4 | `PowerUpZone` | `Echo` |
+| La Verrière | 5 | `PowerUpZone` | `Frenesie` |
+| La Tour de l'horloge | 6 | `PowerUpZone` | `PoidsDuTemps` |
+| Les Coulisses | 7 | `PowerUpZone` | `Rouages` |
+
+**L'orthographe compte** : `Frenesie` sans accent, `PoidsDuTemps` en un seul mot. Une valeur inconnue se plaint dans la console (`zone de power-up sans attribut PowerUp valide`) et la zone est ignorée.
+
+Rien n'empêche de poser une zone dans la mauvaise salle : le jeu ne vérifie que le **palier du joueur**, pas l'endroit. Une zone `Rouages` posée au Quai afficherait simplement « Palier 7 requis » à tout le monde.
+
+### Le test
+
+- [ ] Marcher sur une zone dont le palier n'est pas atteint : cadenas, et le panneau dit quel palier il faut.
+- [ ] Une fois le palier atteint : la fenêtre annonce le niveau, l'effet actuel → suivant, et le prix.
+- [ ] Acheter enchaîne sans ressortir de la zone ; le prix grimpe à chaque niveau.
+- [ ] **Critique** : des « +Xs ! » dorés et plus gros passent de temps en temps.
+- [ ] **Écho** : chaque clic est suivi d'un second gain, plus petit, ~0,4 s plus tard.
+- [ ] **Frénésie** : un bouton apparaît en bas de l'écran ; le déclencher change le rythme pendant 20 s, puis la recharge descend.
+- [ ] **Poids du temps** : le gain par clic est nettement plus gros à 10 h qu'à 2 min.
+- [ ] **Rouages** : cliquer fait monter la jauge de carburant (il faut posséder un auto-cliqueur).
+
+Pour tester sans farmer, baisse temporairement les `costShare` dans `src/shared/PowerUps.luau`. **Remets-les ensuite.**
+
+---
+
+## À faire maintenant — lot 6, les mini-jeux
+
+**Les zones de pari existantes n'ont rien à changer.** Elles sont reprises telles quelles par le cadre commun et gardent leur `BetAmount` et leur déverrouillage.
+
+Pour les sept autres : une Part plate au sol, tag **`MiniGameZone`**, plus trois attributs.
+
+| Salle | `Game` *(texte)* | `BetAmount` *(nombre)* | `MinTier` *(nombre)* | Décor en plus |
+|---|---|---|---|---|
+| La Salle des pas perdus | `Distributeur` | `60` | `2` | — |
+| Le Buffet | `Chaises` | `300` | `3` | une grille de dalles |
+| Le Salon 1re classe | `Roue` | `1800` | `4` | une Part cylindrique |
+| La Verrière | `Wagon` | `10800` | `5` | une plateforme isolée |
+| La Tour de l'horloge | `Duel` | `21600` | `6` | deux emplacements face à face |
+| Les Coulisses | `Braquage` | `108000` | `7` | un coffre |
+| Le Terminus | `TrainDeMinuit` | `0` | `8` | le train |
+
+`BetAmount` et `MinTier` sont facultatifs : sans eux, le jeu prend les valeurs de `src/shared/MiniGameList.luau` (celles du tableau ci-dessus). L'attribut `Game`, lui, est indispensable — sans lui la zone devient un simple pari.
+
+### Le décor, et pourquoi il n'est pas obligatoire
+
+Quatre jeux savent se servir d'un objet du monde. **Aucun n'en dépend** : sans décor, ils se rabattent sur la zone elle-même et restent jouables. C'est fait exprès — les huit jeux sont testables avant que la map n'existe.
+
+Le jeu cherche le décor à trois endroits, dans cet ordre :
+
+1. l'instance nommée par l'attribut **texte** `Decor` posé sur la zone ;
+2. à défaut, un enfant ou un frère portant **le nom du jeu** (`Chaises`, `Roue`, `Wagon`, `Braquage`) ;
+3. à défaut, rien — et le jeu se débrouille.
+
+Le plus simple est le point 2 : nomme ton dossier de dalles `Chaises` et pose-le à côté de la zone.
+
+- **Chaises** — un dossier de Parts-dalles au-dessus d'un vide. Une dalle s'éteint par tour ; qui est dessus tombe. Sans dalles, c'est le joueur **le plus loin du centre** de la zone qui sort à chaque tour.
+- **Roue** — une Part cylindrique. Elle tourne pour de vrai, mais c'est **purement cosmétique** : le résultat est tiré avant qu'elle démarre.
+- **Wagon** — une plateforme isolée au-dessus du vide. Elle **rétrécit vraiment** puis reprend sa taille. Sans elle, c'est la zone qui rétrécit : ça marche, mais pose-la au-dessus d'un vide sinon personne ne tombe.
+- **Braquage** — un coffre. Il s'ouvre en pivotant si le braquage réussit.
+
+Le **Train de minuit** ne s'ouvre pas quand on entre dedans : il part tout seul une fois par heure, s'annonce cinq minutes avant à tout le serveur, puis reste à quai une minute pendant laquelle **on monte en marchant dans la zone**. L'embarquement est gratuit — sa cagnotte vient d'une dîme prélevée sur tous les autres mini-jeux.
+
+### Le test
+
+Avec **un** client :
+
+- [ ] Une zone dont le palier manque affiche un cadenas et dit lequel il faut.
+- [ ] Le **Distributeur** se joue seul : on mise, on gagne ou on perd tout de suite.
+- [ ] La **Roue** demande de choisir un secteur avant de valider.
+- [ ] Le HUD en haut à droite liste les parties en cours et fait descendre le décompte.
+
+Avec **deux** clients :
+
+- [ ] Le **Duel** démarre dès que le deuxième joueur mise, sans attendre la fin du décompte ; un bandeau dit de cliquer et le meilleur score s'affiche.
+- [ ] Les **Chaises** éliminent un joueur par tour jusqu'au dernier debout.
+- [ ] Le **Wagon** rétrécit et élimine qui n'est plus dessus.
+- [ ] Le **Braquage** se gagne ou se perd **ensemble**.
+- [ ] Une partie où personne ne vient rembourse la mise.
+- [ ] Une zone déjà lancée dit « une partie est déjà lancée » au lieu de proposer de miser.
+
+**Pour tester le Train sans attendre une heure** : baisse `Config.TRAIN_INTERVAL` à `120` et `Config.TRAIN_WARNING` à `30`. **Remets `3600` et `300` ensuite.**
+
+---
+
+## À faire maintenant — lot 7, les cadeaux
+
+**Rien à poser.** L'échelle, l'icône et la fenêtre sont entièrement dans le code.
+
+### Le test
+
+- [ ] Atteindre 10 min fait apparaître l'icône « CADEAU À RÉCLAMER » en haut à gauche.
+- [ ] La fenêtre montre **toute** l'échelle : ce qui est pris, ce qui est mûr, ce qui reste à atteindre.
+- [ ] Réclamer donne le cadeau et la ligne s'éteint.
+- [ ] Se reconnecter ne permet pas de réclamer une deuxième fois.
+- [ ] Redescendre sous le seuil ne rend pas le cadeau réclamable — il se lit sur le **plus haut temps jamais tenu**.
+- [ ] Réclamer la Frénésie de 12 h sans posséder le power-up **ne consomme pas** le cadeau : il reste dans la liste.
+
+**Piège de test** : les seuils vont jusqu'à 50 jours. Pour voir les cadeaux hauts, donne-toi du temps au guichet, ou baisse temporairement les seuils dans `src/shared/Rewards.luau`.
+
+---
+
+## Hors Studio, après chaque livraison
+
+Les textes du jeu vivent dans `src/shared/Translations.luau` (11 langues), et sont exportés dans `localization/TimeOut.csv`.
+
+Le lot 1 a ajouté 22 clés et supprimé les 8 rangs ; le lot 4 en a ajouté 4 de plus ; le lot 2 en ajoute 9 (les panneaux d'appel et l'annonce de montée) et retire `notify_tier_announce`, que le bandeau remplace. Les lots 3, 5, 6 et 7 en ajoutent **129** — 21 cartes, 5 power-ups, 8 mini-jeux, 11 cadeaux et leurs notifications — et retirent les 5 clés du pari devenues sans lecteur (`bet_title`, `bet_hud_title`, `notify_bet_win`, `notify_bet_lose`, `notify_bet_unlocked`), que leurs équivalents `minigame_*` remplacent pour les huit jeux. Le fichier en porte maintenant **233**, identiques dans les 11 langues. Le CSV est déjà regénéré — il reste à l'importer : *Creator Dashboard → ton jeu → Localization → Table Management → Import*.
+
+Ce n'est pas bloquant pour tester : le jeu lit `Translations.luau` directement. L'import ne sert qu'au portail de traduction de Roblox, qui peut compléter les langues qu'on ne couvre pas.
+
+---
 
 ---
 
@@ -207,10 +379,11 @@ Une Part plate au sol, tag **`MiniGameZone`**, plus trois attributs : **texte** 
 |---|---|---|---|
 | `TierGate` | La barrière transparente d'un passage | `TargetTier` *(nombre)* — l'étage desservi | **oui** |
 | *(aucun)* | La SpawnLocation du Quai | `TargetTier` *(nombre)* = `1`, facultatif | **oui** |
-| `TierWindow` | Un mur vitré | `TargetTier` *(nombre)* — l'étage qu'on voit | pas encore |
-| `FlickerLight` | Une lumière du bas de l'immeuble | — | pas encore |
-| `ShopZone` | Le guichet à packs | `ShopKind` *(texte)* = `Pack` | pas encore |
-| `PowerUpZone` | Une zone d'achat de power-up | `PowerUp` *(texte)* | pas encore |
-| `MiniGameZone` | Une zone de mini-jeu | `Game`, `BetAmount`, `MinTier` | pas encore |
+| `TierWindow` | Un mur vitré | `TargetTier` *(nombre)* — l'étage qu'on voit | **oui** |
+| `FlickerLight` | Une lumière du bas de l'immeuble | — | **oui** |
+| `ShopZone` | Le guichet à packs | `ShopKind` *(texte)* = `Pack` | **oui** |
+| `PowerUpZone` | Une zone d'achat de power-up | `PowerUp` *(texte)* | **oui** |
+| `MiniGameZone` | Une zone de mini-jeu | `Game` *(texte)*, `BetAmount` *(nombre)*, `MinTier` *(nombre)* | **oui** |
+| *(aucun)* | Le décor d'un mini-jeu | `Decor` *(texte)* sur la zone, facultatif | **oui** |
 
 Déjà en place et inchangés : `TimeCookie`, `ClickUpgrade`, `BetZone`, `TimeOrb`, `HallOfFameBoard`, `ShopZone` (`Time` et `AutoClick`).
