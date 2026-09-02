@@ -4,8 +4,6 @@
 
 Ce fichier dit **dans quel ordre avancer**. Le détail de chaque geste est dans `studio.md` ; le pourquoi est dans `plan2.md`. Coche au fur et à mesure.
 
-> **Pour cocher une case** : pose le curseur sur la ligne et fais `Alt+C` (extension *Markdown All in One*). Rien à sélectionner, rien à viser à la souris.
-
 **La règle qui vaut partout : une Part nue et taguée suffit.** Les portiques, auras, panneaux et cadenas sont construits par le jeu à partir du tag. Ne décore jamais l'intérieur d'une zone — ce qui est posé à la main y est écrasé.
 
 ---
